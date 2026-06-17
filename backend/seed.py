@@ -73,6 +73,27 @@ async def ensure_schema(conn: asyncpg.Connection) -> None:
     await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS thread_id UUID")
 
 
+async def seed_demo_data(conn: asyncpg.Connection) -> bool:
+    """Seed the demo dataset only when the database is empty."""
+    user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
+    if int(user_count or 0) > 0:
+        return False
+
+    async with conn.transaction():
+        await ensure_schema(conn)
+        print("Seeding demo user...")
+        await seed_demo_user(conn)
+        print("Seeding 30 days of journal entries...")
+        await seed_journal_entries(conn, DEMO_USER_ID)
+        print("Seeding chat history...")
+        await seed_chat_history(conn, DEMO_USER_ID)
+        print("Seeding emotional patterns...")
+        await seed_patterns(conn, DEMO_USER_ID)
+        print("Seeding weekly insight...")
+        await seed_weekly_insight(conn, DEMO_USER_ID)
+    return True
+
+
 async def seed_demo_user(conn: asyncpg.Connection) -> None:
     password_hash = bcrypt.hash(DEMO_USER_PASSWORD)
     await conn.execute(
@@ -382,22 +403,9 @@ async def main() -> None:
     conn = await asyncpg.connect(DATABASE_URL)
 
     try:
-        async with conn.transaction():
-            print("Seeding demo user...")
-            await ensure_schema(conn)
-            await seed_demo_user(conn)
-
-            print("Seeding 30 days of journal entries...")
-            await seed_journal_entries(conn, DEMO_USER_ID)
-
-            print("Seeding chat history...")
-            await seed_chat_history(conn, DEMO_USER_ID)
-
-            print("Seeding emotional patterns...")
-            await seed_patterns(conn, DEMO_USER_ID)
-
-            print("Seeding weekly insight...")
-            await seed_weekly_insight(conn, DEMO_USER_ID)
+        seeded = await seed_demo_data(conn)
+        if not seeded:
+            print("Demo data already exists, skipping seed.")
     finally:
         await conn.close()
 

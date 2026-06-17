@@ -6,6 +6,7 @@ import os
 import re
 from collections import Counter
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from uuid import UUID
 from typing import Any
 
@@ -13,6 +14,7 @@ import asyncpg
 
 _pool: asyncpg.Pool | None = None
 _pool_lock = asyncio.Lock()
+_schema_path = Path(__file__).resolve().parents[1] / "database" / "schema.sql"
 
 
 def _default_database_url() -> str:
@@ -60,6 +62,33 @@ async def init_pool() -> asyncpg.Pool:
             if _pool is None and last_error is not None:
                 raise last_error
     return _pool
+
+
+async def ensure_base_schema() -> None:
+    """Create the base tables needed by the app if they do not exist yet."""
+    pool = await _get_pool()
+    sql = _schema_path.read_text(encoding="utf-8")
+    statement_lines: list[str] = []
+    statements: list[str] = []
+
+    for raw_line in sql.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("--"):
+            continue
+        statement_lines.append(raw_line)
+        if line.endswith(";"):
+            statement = "\n".join(statement_lines).strip()
+            statements.append(statement[:-1].strip() if statement.endswith(";") else statement)
+            statement_lines = []
+
+    if statement_lines:
+        statement = "\n".join(statement_lines).strip()
+        if statement:
+            statements.append(statement[:-1].strip() if statement.endswith(";") else statement)
+
+    async with pool.acquire() as conn:
+        for statement in statements:
+            await conn.execute(statement)
 
 
 async def _get_pool() -> asyncpg.Pool:
