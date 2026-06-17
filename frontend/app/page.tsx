@@ -48,6 +48,10 @@ export default function HomePage() {
           <div className="fade-in-up" style={{ animationDelay: "300ms" }}>
             <HomeActions />
           </div>
+
+          <p className="fade-in-up max-w-xl text-xs leading-6 text-mindmirror-muted" style={{ animationDelay: "350ms" }}>
+            MindMirror is a reflective support tool, not a medical device or a substitute for professional care.
+          </p>
         </div>
 
         <div className="relative min-h-[420px] md:min-h-[520px]">

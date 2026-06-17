@@ -36,6 +36,7 @@ export function MoodCalendar({ timeline, onSelectDay }: MoodCalendarProps) {
             key={item.date}
             type="button"
             onClick={() => onSelectDay?.(item.date, item.snippet)}
+            aria-label={`View journal snippet for ${item.date}`}
             className={clsx(
               "group flex aspect-square items-center justify-center rounded-2xl border border-[rgba(255,255,255,0.08)] text-[11px] font-medium transition duration-200 ease-out hover:-translate-y-0.5",
               item.score > 0.35 && "bg-[rgba(16,185,129,0.22)] text-mindmirror-primary",

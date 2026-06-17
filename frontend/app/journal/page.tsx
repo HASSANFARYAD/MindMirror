@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { AuthGate } from "@/components/AuthGate";
 import { JournalInput } from "@/components/JournalInput";
 import { InsightCard } from "@/components/InsightCard";
-import { getSessionUserId } from "@/lib/auth";
 import { normalizeEmotionScores } from "@/lib/sentiment";
 import { submitJournalEntry, transcribeVoice, type JournalAnalysis } from "@/lib/api";
 
@@ -39,7 +38,6 @@ function JournalContent() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const userId = getSessionUserId();
       if (voicePreview) {
         throw new Error("Please insert or discard the voice transcript before submitting.");
       }
@@ -47,7 +45,7 @@ function JournalContent() {
       if (!nextContent) {
         throw new Error("Please type a reflection or record a voice note before submitting.");
       }
-      const response = await submitJournalEntry({ user_id: userId, content: nextContent, voice_file: null });
+      const response = await submitJournalEntry({ content: nextContent, voice_file: null });
       setJournalId(response.id);
       setVoicePreview(null);
       setAnalysis({
@@ -82,6 +80,7 @@ function JournalContent() {
           onVoiceCaptured={handleVoiceCaptured}
           onTranscribing={setIsTranscribing}
           isSubmitting={isSubmitting}
+          validationError={error}
         />
         {voicePreview ? (
           <section className="surface-card surface-card-hover rounded-2xl p-6">

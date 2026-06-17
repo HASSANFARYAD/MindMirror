@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from security import CurrentUser, get_current_user
 from services.memory_service import get_emotional_map, list_patterns, list_weekly_insights
 
 router = APIRouter()
@@ -21,14 +22,12 @@ class EmotionalMapPoint(BaseModel):
     snippet: str | None = None
 
 
-@router.get("/emotional-map/{user_id}")
-async def emotional_map(user_id: str) -> dict[str, Any]:
+@router.get("/emotional-map")
+async def emotional_map(current_user: CurrentUser = Depends(get_current_user)) -> dict[str, Any]:
     """Return 30-day emotional map data for the dashboard."""
-    data = await get_emotional_map(user_id, days=30)
-    if not data:
-        raise HTTPException(status_code=404, detail="No emotional data found")
-    data["patterns"] = data.get("patterns") or await list_patterns(user_id, limit=12)
-    data["weekly_insights"] = data.get("weekly_insights") or await list_weekly_insights(user_id, limit=4)
+    data = await get_emotional_map(current_user.id, days=30)
+    data["patterns"] = data.get("patterns") or await list_patterns(current_user.id, limit=12)
+    data["weekly_insights"] = data.get("weekly_insights") or await list_weekly_insights(current_user.id, limit=4)
     return data
 
 
@@ -59,7 +58,7 @@ def _dominant_emotion(emotions: dict[str, float]) -> str:
 
 def _weekly_emotion_averages(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Compute radar chart averages from the latest entries."""
-    labels = ["joy", "sadness", "fear", "anger", "surprise", "neutral"]
+    labels = ["joy", "sadness", "fear", "anger", "surprise", "neutral", "disgust"]
     totals = {label: 0.0 for label in labels}
     count = max(len(entries[:7]), 1)
     for entry in entries[:7]:

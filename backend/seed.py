@@ -6,9 +6,12 @@ import os
 import random
 import uuid
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 import asyncpg
 from passlib.hash import bcrypt
+
+SCHEMA_PATH = Path(__file__).resolve().parent / "database" / "schema.sql"
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -57,6 +60,7 @@ def phase_for_day(age_in_days: int) -> str:
 
 
 async def ensure_schema(conn: asyncpg.Connection) -> None:
+    await conn.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
     await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT")
     await conn.execute(
         """
@@ -406,7 +410,6 @@ async def main() -> None:
     print("")
     print("✅ Seed complete!")
     print("   Demo login: demo@mindmirror.app")
-    print("   Password:   Demo1234!")
     print("   Open:       http://localhost:3000")
 
 

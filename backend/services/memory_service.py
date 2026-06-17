@@ -78,6 +78,7 @@ async def ensure_base_schema() -> None:
                   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                   email TEXT UNIQUE NOT NULL,
                   name TEXT,
+                  password_hash TEXT,
                   created_at TIMESTAMP DEFAULT NOW()
                 )
                 """
@@ -189,33 +190,39 @@ async def _execute(query: str, *args: Any) -> str:
 
 
 async def ensure_user_exists(user_id: str) -> None:
-    await _execute(
-        """
-        INSERT INTO users (id, email, name)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (id) DO NOTHING
-        """,
-        user_id,
-        f"{user_id}@local.mindmirror",
-        None,
-    )
+    row = await _fetchrow("SELECT id FROM users WHERE id = $1 LIMIT 1", user_id)
+    if row is None:
+        raise ValueError("User not found")
 
 
-async def upsert_user(email: str, name: str | None = None) -> dict[str, Any]:
+async def upsert_user(email: str, name: str | None = None, password_hash: str | None = None) -> dict[str, Any]:
     row = await _fetchrow(
         """
-        INSERT INTO users (email, name)
-        VALUES ($1, $2)
+        INSERT INTO users (email, name, password_hash)
+        VALUES ($1, $2, $3)
         ON CONFLICT (email)
-        DO UPDATE SET name = COALESCE(EXCLUDED.name, users.name)
+        DO UPDATE SET
+          name = COALESCE(EXCLUDED.name, users.name),
+          password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash)
         RETURNING *
         """,
         email,
         name,
+        password_hash,
     )
     if row is None:
         return {"id": "", "email": email, "name": name}
     return _record_to_dict(row) or {"id": "", "email": email, "name": name}
+
+
+async def get_user_by_email(email: str) -> dict[str, Any] | None:
+    row = await _fetchrow("SELECT * FROM users WHERE email = $1 LIMIT 1", email)
+    return _record_to_dict(row)
+
+
+async def get_user_by_id(user_id: str) -> dict[str, Any] | None:
+    row = await _fetchrow("SELECT * FROM users WHERE id = $1 LIMIT 1", user_id)
+    return _record_to_dict(row)
 
 
 async def insert_journal_entry(payload: dict[str, Any]) -> dict[str, Any]:
@@ -274,8 +281,11 @@ async def list_journal_entries(user_id: str, days: int = 30) -> list[dict[str, A
     return await get_recent_entries(user_id, days=days)
 
 
-async def get_journal_entry(entry_id: str) -> dict[str, Any] | None:
-    row = await _fetchrow("SELECT * FROM journal_entries WHERE id = $1 LIMIT 1", entry_id)
+async def get_journal_entry(entry_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+    if user_id is None:
+        row = await _fetchrow("SELECT * FROM journal_entries WHERE id = $1 LIMIT 1", entry_id)
+    else:
+        row = await _fetchrow("SELECT * FROM journal_entries WHERE id = $1 AND user_id = $2 LIMIT 1", entry_id, user_id)
     return _record_to_dict(row)
 
 async def ensure_chat_schema() -> None:
@@ -410,6 +420,9 @@ async def delete_chat_thread(thread_id: str, user_id: str) -> None:
 
 async def save_chat_message(user_id: str, thread_id: str, role: str, content: str) -> dict[str, Any]:
     await ensure_user_exists(user_id)
+    thread = await _fetchrow("SELECT id FROM chat_threads WHERE id = $1 AND user_id = $2 LIMIT 1", thread_id, user_id)
+    if thread is None:
+        raise ValueError("Chat thread not found")
     row = await _fetchrow(
         """
         INSERT INTO chat_messages (user_id, thread_id, role, content)
@@ -656,7 +669,7 @@ async def list_patterns(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
 async def get_emotional_map(user_id: str, days: int = 30) -> dict[str, Any]:
     entries = await get_recent_entries(user_id, days=days)
     timeline = []
-    for entry in entries[:30]:
+    for entry in reversed(entries[:30]):
         emotions = _normalize_emotions(entry.get("emotions"))
         timeline.append(
             {
@@ -668,7 +681,7 @@ async def get_emotional_map(user_id: str, days: int = 30) -> dict[str, Any]:
             }
         )
 
-    labels = ["joy", "sadness", "fear", "anger", "surprise", "neutral"]
+    labels = ["joy", "sadness", "fear", "anger", "surprise", "neutral", "disgust"]
     totals = {label: 0.0 for label in labels}
     count = max(len(entries[:7]), 1)
     for entry in entries[:7]:

@@ -52,18 +52,68 @@ export type ChatThreadDetail = ChatThreadSummary & {
 
 const apiPort = process.env.NEXT_PUBLIC_API_PORT ?? "8000";
 export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? `http://localhost:${apiPort}`;
+const AUTH_STORAGE_KEY = "mindmirror_auth_session";
+
+function sanitizeTextInput(value: string, label: string, maxLength: number): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error(`${label} cannot be empty.`);
+  }
+  if (normalized.length > maxLength) {
+    throw new Error(`${label} must be ${maxLength} characters or fewer.`);
+  }
+  return normalized;
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  const detail = await response.text();
+  try {
+    const parsed = JSON.parse(detail) as { detail?: unknown };
+    if (typeof parsed.detail === "string" && parsed.detail.trim()) {
+      return parsed.detail;
+    }
+  } catch {
+    // Fall back to the raw response text.
+  }
+  return detail || `Request failed with status ${response.status}`;
+}
+
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { token?: string };
+    return typeof parsed.token === "string" ? parsed.token : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildHeaders(init?: RequestInit, includeAuth = false): HeadersInit {
+  const headers = new Headers();
+  if (!(init?.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+  new Headers(init?.headers ?? {}).forEach((value, key) => {
+    headers.set(key, value);
+  });
+  if (includeAuth) {
+    const token = getAuthToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
+  return headers;
+}
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
     ...init,
+    headers: buildHeaders(init),
   });
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Request failed with status ${response.status}`);
+    throw new Error(await readErrorMessage(response));
   }
   return response.json() as Promise<T>;
 }
@@ -71,23 +121,30 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 export async function registerDemoUser(email: string, name?: string) {
   return requestJson<{ user: { id: string; email: string; name?: string | null }; token: string }>("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, name }),
+    body: JSON.stringify({
+      email: sanitizeTextInput(email, "Email", 320),
+      name: name?.trim() || undefined,
+      password: "Demo1234!",
+    }),
   });
 }
 
 export async function submitJournalEntry(payload: {
-  user_id: string;
   content: string;
   voice_file?: string | null;
 }): Promise<JournalEntry> {
   return requestJson<JournalEntry>("/journal/entry", {
     method: "POST",
-    body: JSON.stringify(payload),
+    headers: buildHeaders(undefined, true),
+    body: JSON.stringify({
+      content: sanitizeTextInput(payload.content, "Journal content", 10000),
+      voice_file: payload.voice_file ?? null,
+    }),
   });
 }
 
 export async function getJournalEntry(entryId: string): Promise<JournalEntry> {
-  return requestJson<JournalEntry>(`/journal/entry/${entryId}`);
+  return requestJson<JournalEntry>(`/journal/entry/${entryId}`, { headers: buildHeaders(undefined, true) });
 }
 
 export async function transcribeVoice(file: Blob): Promise<string> {
@@ -95,16 +152,17 @@ export async function transcribeVoice(file: Blob): Promise<string> {
   form.append("file", file, "voice.webm");
   const response = await fetch(`${apiBaseUrl}/journal/voice-transcribe`, {
     method: "POST",
+    headers: buildHeaders({ body: form }, true),
     body: form,
   });
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new Error(await readErrorMessage(response));
   }
   const data = (await response.json()) as { transcript: string };
   return data.transcript;
 }
 
-export async function getEmotionalMap(userId: string): Promise<{
+export async function getEmotionalMap(): Promise<{
   timeline: EmotionPoint[];
   radar: Array<{ emotion: string; score: number }>;
   patterns: Array<{ id?: string; pattern_type: string; description: string; severity: string }>;
@@ -117,17 +175,21 @@ export async function getEmotionalMap(userId: string): Promise<{
     week_start?: string | null;
   }>;
 }> {
-  return requestJson(`/analysis/emotional-map/${userId}`);
+  return requestJson(`/analysis/emotional-map`, { headers: buildHeaders(undefined, true) });
 }
 
 export async function streamChatMessage(
-  payload: { user_id: string; message: string; journal_entry_id?: string | null; thread_id?: string | null },
+  payload: { message: string; journal_entry_id?: string | null; thread_id?: string | null },
   onToken: (token: string) => void,
 ): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/chat/message`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    headers: buildHeaders(undefined, true),
+    body: JSON.stringify({
+      message: sanitizeTextInput(payload.message, "Chat message", 2000),
+      journal_entry_id: payload.journal_entry_id ?? null,
+      thread_id: payload.thread_id ?? null,
+    }),
   });
   if (!response.ok || !response.body) {
     throw new Error(await response.text());
@@ -156,45 +218,45 @@ export async function streamChatMessage(
   }
 }
 
-export async function listChatThreads(
-  userId: string,
-  options?: { search?: string; journalOnly?: boolean },
-): Promise<ChatThreadSummary[]> {
-  const params = new URLSearchParams({ user_id: userId });
+export async function listChatThreads(options?: { search?: string; journalOnly?: boolean }): Promise<ChatThreadSummary[]> {
+  const params = new URLSearchParams();
   if (options?.search) params.set("search", options.search);
   params.set("journal_only", String(options?.journalOnly ?? true));
-  return requestJson<ChatThreadSummary[]>(`/chat/threads?${params.toString()}`);
+  return requestJson<ChatThreadSummary[]>(`/chat/threads?${params.toString()}`, { headers: buildHeaders(undefined, true) });
 }
 
 export async function createChatThread(payload: {
-  user_id: string;
   title: string;
   journal_entry_id?: string | null;
 }): Promise<ChatThreadSummary> {
   return requestJson<ChatThreadSummary>("/chat/threads", {
     method: "POST",
-    body: JSON.stringify(payload),
+    headers: buildHeaders(undefined, true),
+    body: JSON.stringify({
+      title: sanitizeTextInput(payload.title, "Chat title", 120),
+      journal_entry_id: payload.journal_entry_id ?? null,
+    }),
   });
 }
 
-export async function getChatThread(threadId: string, userId: string): Promise<ChatThreadDetail> {
-  const params = new URLSearchParams({ user_id: userId });
-  return requestJson<ChatThreadDetail>(`/chat/threads/${threadId}?${params.toString()}`);
+export async function getChatThread(threadId: string): Promise<ChatThreadDetail> {
+  return requestJson<ChatThreadDetail>(`/chat/threads/${threadId}`, { headers: buildHeaders(undefined, true) });
 }
 
 export async function renameChatThread(payload: {
   thread_id: string;
-  user_id: string;
   title: string;
 }): Promise<ChatThreadSummary> {
   return requestJson<ChatThreadSummary>(`/chat/threads/${payload.thread_id}`, {
     method: "PATCH",
-    body: JSON.stringify({ user_id: payload.user_id, title: payload.title }),
+    headers: buildHeaders(undefined, true),
+    body: JSON.stringify({ title: sanitizeTextInput(payload.title, "Chat title", 120) }),
   });
 }
 
-export async function deleteChatThread(threadId: string, userId: string): Promise<void> {
-  await requestJson(`/chat/threads/${threadId}?user_id=${encodeURIComponent(userId)}`, {
+export async function deleteChatThread(threadId: string): Promise<void> {
+  await requestJson(`/chat/threads/${threadId}`, {
     method: "DELETE",
+    headers: buildHeaders(undefined, true),
   });
 }

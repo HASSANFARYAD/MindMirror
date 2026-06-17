@@ -69,10 +69,19 @@ export function AuthForm({ mode }: AuthFormProps) {
     setSubmitting(true);
     setError(null);
 
+    const trimmedEmail = email.trim();
+    const trimmedName = name.trim();
+    const trimmedPassword = password.trim();
+    if (!trimmedEmail || !trimmedPassword) {
+      setError("Email and password are required.");
+      setSubmitting(false);
+      return;
+    }
+
     const payload = {
-      email: email.trim(),
-      name: name.trim() || undefined,
-      password: password.trim() || undefined,
+      email: trimmedEmail,
+      name: trimmedName || undefined,
+      password: trimmedPassword,
     };
 
     try {
@@ -164,7 +173,8 @@ export function AuthForm({ mode }: AuthFormProps) {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Optional for the current backend setup"
+              placeholder={mode === "login" ? "Enter your password" : "Create a strong password"}
+              required
               className="w-full rounded-2xl border border-white/8 bg-[#111120] px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-mindmirror-violet/60"
             />
           </label>

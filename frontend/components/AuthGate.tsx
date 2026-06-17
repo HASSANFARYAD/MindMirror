@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { clearSession, getStoredSession, refreshSession, type AuthSession } from "@/lib/auth";
+import { clearAnonymousUserId, clearSession, getStoredSession, refreshSession, type AuthSession } from "@/lib/auth";
 
 type AuthGateProps = {
   children: ReactNode;
@@ -36,6 +36,7 @@ export function AuthGate({ children }: AuthGateProps) {
 
       if (!refreshed) {
         clearSession();
+        clearAnonymousUserId();
         setSession(null);
         router.replace(buildLoginUrl(target));
         return;

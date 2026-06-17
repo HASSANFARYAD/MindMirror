@@ -14,10 +14,10 @@ import {
   type ChatThreadDetail,
   type ChatThreadSummary,
 } from "@/lib/api";
+import { getSessionUserId } from "@/lib/auth";
 import { moodLabelFromText } from "@/lib/sentiment";
 
 type ChatWindowProps = {
-  userId: string;
   journalEntryId?: string | null;
   initialJournalContext?: string | null;
 };
@@ -56,7 +56,8 @@ function makeMessage(params: {
   };
 }
 
-export function ChatWindow({ userId, journalEntryId, initialJournalContext }: ChatWindowProps) {
+export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindowProps) {
+  const userId = getSessionUserId();
   const [threads, setThreads] = useState<ChatThreadSummary[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [activeThread, setActiveThread] = useState<ChatThreadDetail | null>(null);
@@ -70,9 +71,11 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
   const [currentMood, setCurrentMood] = useState("balanced");
   const [recording, setRecording] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const voiceTimerRef = useRef<number | null>(null);
   const journalBootstrappedRef = useRef<string | null>(null);
 
   const messages = activeThread?.messages ?? [];
@@ -85,7 +88,7 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
     setLoadingThreads(true);
     setSidebarError(null);
     try {
-      const list = await listChatThreads(userId, {
+      const list = await listChatThreads({
         search: nextSearch.trim() || undefined,
         journalOnly: nextJournalOnly,
       });
@@ -104,7 +107,7 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
     setLoadingThread(true);
     setSidebarError(null);
     try {
-      const detail = await getChatThread(threadId, userId);
+      const detail = await getChatThread(threadId);
       setActiveThread(detail);
       setActiveThreadId(threadId);
       const latestUserMessage = [...detail.messages].reverse().find((message) => message.role === "user");
@@ -122,7 +125,6 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
 
   async function createAndOpenThread(title: string, threadJournalEntryId?: string | null, initialMessage?: string) {
     const created = await createChatThread({
-      user_id: userId,
       title,
       journal_entry_id: threadJournalEntryId,
     });
@@ -181,6 +183,14 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
   }, [messages]);
 
   useEffect(() => {
+    return () => {
+      if (voiceTimerRef.current) {
+        window.clearTimeout(voiceTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const activeMessages = messages;
     if (activeMessages.length === 0) {
       if (initialJournalContext) {
@@ -199,12 +209,20 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
 
   async function toggleVoice() {
     if (recording) {
+      if (voiceTimerRef.current) {
+        window.clearTimeout(voiceTimerRef.current);
+      }
       recorderRef.current?.stop();
       setRecording(false);
       return;
     }
 
     try {
+      setVoiceError(null);
+      if (!("MediaRecorder" in window)) {
+        setVoiceError("Voice recording is not supported in this browser.");
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       recorderRef.current = recorder;
@@ -215,20 +233,33 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
       };
 
       recorder.onstop = async () => {
+        if (voiceTimerRef.current) {
+          window.clearTimeout(voiceTimerRef.current);
+        }
         stream.getTracks().forEach((track) => track.stop());
         setVoiceBusy(true);
         try {
           const blob = new Blob(chunksRef.current, { type: "audio/webm" });
           const transcript = await transcribeVoice(blob);
           setInput((current) => `${current} ${transcript}`.trim());
+        } catch (error) {
+          setVoiceError(error instanceof Error ? error.message : "Voice transcription failed.");
         } finally {
           setVoiceBusy(false);
         }
       };
 
       recorder.start();
+      voiceTimerRef.current = window.setTimeout(() => {
+        if (recorder.state === "recording") {
+          recorder.stop();
+          setRecording(false);
+          setVoiceError("Recording stopped automatically after 60 seconds.");
+        }
+      }, 60_000);
       setRecording(true);
     } catch {
+      setVoiceError("Microphone access failed.");
       setVoiceBusy(false);
       setRecording(false);
     }
@@ -262,7 +293,7 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
           !activeThreadSummary);
       if (shouldAutoTitle) {
         const nextTitle = formatThreadTitle(trimmed);
-        const renamed = await renameChatThread({ thread_id: threadId, user_id: userId, title: nextTitle });
+        const renamed = await renameChatThread({ thread_id: threadId, title: nextTitle });
         setThreads((current) => current.map((thread) => (thread.id === threadId ? { ...thread, ...renamed } : thread)));
         setActiveThread((current) => (current && current.id === threadId ? { ...current, ...renamed } : current));
       }
@@ -270,7 +301,6 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
       let assistantText = "";
       await streamChatMessage(
         {
-          user_id: userId,
           thread_id: threadId,
           message: trimmed,
           journal_entry_id: journalEntryId ?? undefined,
@@ -295,13 +325,13 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
         },
       );
 
-      const refreshed = await getChatThread(threadId, userId);
+      const refreshed = await getChatThread(threadId);
       setActiveThread(refreshed);
-      setThreads(await listChatThreads(userId, { search: search.trim() || undefined, journalOnly: showJournalOnly }));
+      setThreads(await listChatThreads({ search: search.trim() || undefined, journalOnly: showJournalOnly }));
     } catch (error) {
       setSidebarError(error instanceof Error ? error.message : "Failed to send message.");
       if (activeThreadId) {
-        const refreshed = await getChatThread(activeThreadId, userId).catch(() => null);
+        const refreshed = await getChatThread(activeThreadId).catch(() => null);
         if (refreshed) {
           setActiveThread(refreshed);
         }
@@ -321,7 +351,6 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
     try {
       const updated = await renameChatThread({
         thread_id: thread.id,
-        user_id: userId,
         title: nextTitle.slice(0, TITLE_LIMIT),
       });
       setThreads((current) => current.map((item) => (item.id === thread.id ? { ...item, ...updated } : item)));
@@ -336,7 +365,7 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
   async function handleDeleteThread(thread: ChatThreadSummary) {
     if (!window.confirm(`Delete "${thread.title}"?`)) return;
     try {
-      await deleteChatThread(thread.id, userId);
+      await deleteChatThread(thread.id);
       const nextThreads = await refreshThreads();
       if (activeThreadId === thread.id) {
         setActiveThread(null);
@@ -365,7 +394,7 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
         return;
       }
 
-      const created = await createChatThread({ user_id: userId, title: "New chat" });
+      const created = await createChatThread({ title: "New chat" });
       setThreads((current) => [created, ...current.filter((thread) => thread.id !== created.id)]);
       setActiveThread({ ...created, messages: [] });
       setActiveThreadId(created.id);
@@ -404,6 +433,7 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search chats"
+              aria-label="Search chat history"
               className="w-full bg-transparent text-sm text-mindmirror-primary outline-none placeholder:text-mindmirror-muted"
             />
           </label>
@@ -560,6 +590,7 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
             <button
               type="button"
               onClick={() => void toggleVoice()}
+              aria-pressed={recording}
               className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-mindmirror-primary transition duration-[180ms] ease-out hover:border-[rgba(255,255,255,0.25)]"
             >
               <Mic className={`h-4 w-4 ${recording ? "text-mindmirror-pink" : "text-mindmirror-secondary"}`} />
@@ -569,6 +600,7 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Type a message or choose a quick reply..."
+              aria-label="Chat message"
               className="min-h-[56px] flex-1 resize-none rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-mindmirror-primary outline-none placeholder:text-mindmirror-muted focus:border-[rgba(124,58,237,0.6)]"
             />
             <button
@@ -581,6 +613,7 @@ export function ChatWindow({ userId, journalEntryId, initialJournalContext }: Ch
               Send
             </button>
           </div>
+          {voiceError ? <p className="text-sm text-[#FCA5A5]">{voiceError}</p> : null}
         </div>
       </section>
     </div>
