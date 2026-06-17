@@ -1,0 +1,81 @@
+services:
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mindmirror_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    entrypoint: >
+      sh -c "ollama serve &
+             sleep 5 &&
+             ollama pull llama3.2:3b &&
+             wait"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: mindmirror_postgres
+    environment:
+      POSTGRES_DB: mindmirror
+      POSTGRES_USER: mindmirror_user
+      POSTGRES_PASSWORD: mindmirror_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mindmirror_user -d mindmirror"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mindmirror_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - FRONTEND_PORT=3000
+      - FRONTEND_ORIGIN=http://localhost:3000
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
+      - DATABASE_URL=postgresql://mindmirror_user:mindmirror_pass@postgres:5432/mindmirror
+      - WHISPER_MODEL=base
+      - HF_HOME=/app/.cache/huggingface
+    depends_on:
+      ollama:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - hf_cache:/app/.cache/huggingface
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mindmirror_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NEXT_PUBLIC_API_PORT=8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  postgres_data:
+  hf_cache:

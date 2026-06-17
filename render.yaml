@@ -1,0 +1,38 @@
+databases:
+  - name: mindmirror-db
+    plan: free
+
+services:
+  - type: web
+    runtime: docker
+    name: mindmirror-backend
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    envVars:
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: WHISPER_MODEL
+        value: tiny
+      - key: HF_HOME
+        value: /app/.cache/huggingface
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mindmirror-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+
+  - type: web
+    runtime: docker
+    name: mindmirror-frontend
+    rootDir: frontend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    startCommand: node server.js
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://mindmirror-backend.onrender.com
