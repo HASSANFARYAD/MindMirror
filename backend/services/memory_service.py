@@ -65,30 +65,105 @@ async def init_pool() -> asyncpg.Pool:
 
 
 async def ensure_base_schema() -> None:
-    """Create the base tables needed by the app if they do not exist yet."""
+    """Create the base tables and any missing schema objects idempotently."""
     pool = await _get_pool()
-    sql = _schema_path.read_text(encoding="utf-8")
-    statement_lines: list[str] = []
-    statements: list[str] = []
-
-    for raw_line in sql.splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("--"):
-            continue
-        statement_lines.append(raw_line)
-        if line.endswith(";"):
-            statement = "\n".join(statement_lines).strip()
-            statements.append(statement[:-1].strip() if statement.endswith(";") else statement)
-            statement_lines = []
-
-    if statement_lines:
-        statement = "\n".join(statement_lines).strip()
-        if statement:
-            statements.append(statement[:-1].strip() if statement.endswith(";") else statement)
 
     async with pool.acquire() as conn:
-        for statement in statements:
-            await conn.execute(statement)
+        await conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+
+        if not await _table_exists(conn, "users"):
+            await conn.execute(
+                """
+                CREATE TABLE users (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  email TEXT UNIQUE NOT NULL,
+                  name TEXT,
+                  created_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "journal_entries"):
+            await conn.execute(
+                """
+                CREATE TABLE journal_entries (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  content TEXT NOT NULL,
+                  voice_transcript TEXT,
+                  sentiment_score FLOAT,
+                  sentiment_label TEXT,
+                  emotions JSONB,
+                  cognitive_distortions JSONB,
+                  created_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "chat_threads"):
+            await conn.execute(
+                """
+                CREATE TABLE chat_threads (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  journal_entry_id UUID REFERENCES journal_entries(id),
+                  title TEXT NOT NULL,
+                  created_at TIMESTAMP DEFAULT NOW(),
+                  updated_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "chat_messages"):
+            await conn.execute(
+                """
+                CREATE TABLE chat_messages (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  thread_id UUID REFERENCES chat_threads(id) ON DELETE CASCADE,
+                  role TEXT CHECK (role IN ('user', 'assistant')),
+                  content TEXT NOT NULL,
+                  created_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "emotional_patterns"):
+            await conn.execute(
+                """
+                CREATE TABLE emotional_patterns (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  pattern_type TEXT,
+                  description TEXT,
+                  detected_at TIMESTAMP DEFAULT NOW(),
+                  severity TEXT
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "weekly_insights"):
+            await conn.execute(
+                """
+                CREATE TABLE weekly_insights (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  week_start DATE,
+                  dominant_emotion TEXT,
+                  avg_sentiment FLOAT,
+                  top_triggers JSONB,
+                  cbt_recommendation TEXT,
+                  generated_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT")
+        await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS thread_id UUID")
+
+
+async def _table_exists(conn: asyncpg.Connection, table_name: str) -> bool:
+    return bool(await conn.fetchval("SELECT to_regclass($1) IS NOT NULL", f"public.{table_name}"))
 
 
 async def _get_pool() -> asyncpg.Pool:

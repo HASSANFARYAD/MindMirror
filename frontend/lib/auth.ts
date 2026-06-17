@@ -60,8 +60,14 @@ export function clearSession(): void {
   window.dispatchEvent(new Event(AUTH_EVENT_NAME));
 }
 
+export function clearAnonymousUserId(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(ANON_STORAGE_KEY);
+}
+
 export function signOutSession(): void {
   clearSession();
+  clearAnonymousUserId();
 }
 
 export function onAuthChange(listener: () => void): () => void {

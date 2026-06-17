@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut, Sparkles } from "lucide-react";
 import { getStoredSession, onAuthChange, refreshSession, signOutSession, type AuthSession } from "@/lib/auth";
 
@@ -14,7 +13,6 @@ const navItems = [
 ];
 
 export function SiteHeader() {
-  const router = useRouter();
   const [session, setSession] = useState<AuthSession | null>(null);
   const visibleNavItems = session ? navItems : navItems.slice(0, 1);
 
@@ -82,8 +80,7 @@ export function SiteHeader() {
                 onClick={() => {
                   signOutSession();
                   setSession(null);
-                  router.replace("/");
-                  router.refresh();
+                  window.location.replace("/login");
                 }}
                 className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.05)] px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:border-[rgba(255,255,255,0.35)] hover:text-mindmirror-primary"
               >

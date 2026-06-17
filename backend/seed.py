@@ -74,11 +74,7 @@ async def ensure_schema(conn: asyncpg.Connection) -> None:
 
 
 async def seed_demo_data(conn: asyncpg.Connection) -> bool:
-    """Seed the demo dataset only when the database is empty."""
-    user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
-    if int(user_count or 0) > 0:
-        return False
-
+    """Seed the demo dataset idempotently."""
     async with conn.transaction():
         await ensure_schema(conn)
         print("Seeding demo user...")
@@ -403,9 +399,7 @@ async def main() -> None:
     conn = await asyncpg.connect(DATABASE_URL)
 
     try:
-        seeded = await seed_demo_data(conn)
-        if not seeded:
-            print("Demo data already exists, skipping seed.")
+        await seed_demo_data(conn)
     finally:
         await conn.close()
 

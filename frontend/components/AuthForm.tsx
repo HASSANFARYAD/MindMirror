@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { ArrowRight, CircleCheckBig, LogIn, UserPlus } from "lucide-react";
 import {
-  clearSession,
   getStoredSession,
   loginWithJwt,
   refreshSession,
   registerWithJwt,
   saveSession,
+  signOutSession,
   type AuthSession,
 } from "@/lib/auth";
 
@@ -204,7 +204,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         <button
           type="button"
           onClick={() => {
-            clearSession();
+            signOutSession();
             setSession(null);
             setEmail("");
             setName("");
