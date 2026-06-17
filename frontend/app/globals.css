@@ -24,6 +24,12 @@ body {
   color: var(--text-primary);
 }
 
+html,
+body,
+body > div:first-child {
+  width: 100%;
+}
+
 * {
   box-sizing: border-box;
 }

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routes import analysis, auth, chat, journal
 from services.claude_service import check_ollama_health
-from services.memory_service import init_pool
+from services.memory_service import ensure_chat_schema, init_pool
 from services.sentiment_service import get_emotion_pipeline
 from services.whisper_service import get_model
 
@@ -53,6 +53,7 @@ async def startup_event() -> None:
             print("Warning: Ollama not ready yet")
 
     await init_pool()
+    await ensure_chat_schema()
     preload_results = await asyncio.gather(
         asyncio.to_thread(get_model),
         asyncio.to_thread(get_emotion_pipeline),

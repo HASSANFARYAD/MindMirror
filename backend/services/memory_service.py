@@ -174,47 +174,190 @@ async def get_journal_entry(entry_id: str) -> dict[str, Any] | None:
     row = await _fetchrow("SELECT * FROM journal_entries WHERE id = $1 LIMIT 1", entry_id)
     return _record_to_dict(row)
 
+async def ensure_chat_schema() -> None:
+    await _execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat_threads (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id),
+          journal_entry_id UUID REFERENCES journal_entries(id),
+          title TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+    await _execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS thread_id UUID")
 
-async def save_chat_message(user_id: str, role: str, content: str) -> dict[str, Any]:
+
+async def create_chat_thread(user_id: str, title: str, journal_entry_id: str | None = None) -> dict[str, Any]:
     await ensure_user_exists(user_id)
     row = await _fetchrow(
         """
-        INSERT INTO chat_messages (user_id, role, content)
+        INSERT INTO chat_threads (user_id, title, journal_entry_id)
         VALUES ($1, $2, $3)
         RETURNING *
         """,
         user_id,
+        title,
+        journal_entry_id,
+    )
+    return _record_to_dict(row) if row else {"user_id": user_id, "title": title, "journal_entry_id": journal_entry_id}
+
+
+async def list_chat_threads(user_id: str, search: str | None = None, journal_only: bool = True) -> list[dict[str, Any]]:
+    rows = await _fetch(
+        """
+        SELECT
+          t.*,
+          COALESCE(
+            (SELECT COUNT(*) FROM chat_messages m WHERE m.thread_id = t.id),
+            0
+          ) AS message_count,
+          COALESCE(
+            (SELECT content FROM chat_messages m WHERE m.thread_id = t.id ORDER BY created_at DESC LIMIT 1),
+            ''
+          ) AS last_message_preview,
+          COALESCE(
+            (SELECT MAX(created_at) FROM chat_messages m WHERE m.thread_id = t.id),
+            t.updated_at,
+            t.created_at
+          ) AS last_activity_at
+        FROM chat_threads t
+        WHERE t.user_id = $1
+          AND ($2::boolean = false OR t.journal_entry_id IS NOT NULL)
+          AND (
+            $3::text IS NULL
+            OR t.title ILIKE '%' || $3 || '%'
+            OR EXISTS (
+              SELECT 1
+              FROM chat_messages m
+              WHERE m.thread_id = t.id
+                AND m.content ILIKE '%' || $3 || '%'
+            )
+          )
+        ORDER BY last_activity_at DESC
+        """,
+        user_id,
+        journal_only,
+        search.strip() if search and search.strip() else None,
+    )
+    return _rows_to_dicts(rows)
+
+
+async def get_chat_thread(thread_id: str, user_id: str) -> dict[str, Any] | None:
+    thread_row = await _fetchrow(
+        """
+        SELECT *
+        FROM chat_threads
+        WHERE id = $1
+          AND user_id = $2
+        LIMIT 1
+        """,
+        thread_id,
+        user_id,
+    )
+    thread = _record_to_dict(thread_row)
+    if thread is None:
+        return None
+    message_rows = await _fetch(
+        """
+        SELECT *
+        FROM chat_messages
+        WHERE thread_id = $1
+          AND user_id = $2
+        ORDER BY created_at ASC
+        """,
+        thread_id,
+        user_id,
+    )
+    thread["messages"] = _rows_to_dicts(message_rows)
+    return thread
+
+
+async def update_chat_thread(thread_id: str, user_id: str, title: str) -> dict[str, Any] | None:
+    row = await _fetchrow(
+        """
+        UPDATE chat_threads
+        SET title = $3,
+            updated_at = NOW()
+        WHERE id = $1
+          AND user_id = $2
+        RETURNING *
+        """,
+        thread_id,
+        user_id,
+        title,
+    )
+    return _record_to_dict(row)
+
+
+async def delete_chat_thread(thread_id: str, user_id: str) -> None:
+    await _execute(
+        """
+        DELETE FROM chat_threads
+        WHERE id = $1
+          AND user_id = $2
+        """,
+        thread_id,
+        user_id,
+    )
+
+
+async def save_chat_message(user_id: str, thread_id: str, role: str, content: str) -> dict[str, Any]:
+    await ensure_user_exists(user_id)
+    row = await _fetchrow(
+        """
+        INSERT INTO chat_messages (user_id, thread_id, role, content)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+        """,
+        user_id,
+        thread_id,
         role,
         content,
     )
-    return _record_to_dict(row) if row else {"user_id": user_id, "role": role, "content": content}
+    await _execute(
+        """
+        UPDATE chat_threads
+        SET updated_at = NOW()
+        WHERE id = $1
+          AND user_id = $2
+        """,
+        thread_id,
+        user_id,
+    )
+    return _record_to_dict(row) if row else {"user_id": user_id, "thread_id": thread_id, "role": role, "content": content}
 
 
 async def insert_chat_message(payload: dict[str, Any]) -> dict[str, Any]:
     return await save_chat_message(
         str(payload.get("user_id") or ""),
+        str(payload.get("thread_id") or ""),
         str(payload.get("role") or "user"),
         str(payload.get("content") or ""),
     )
 
 
-async def get_chat_history(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+async def get_chat_history(user_id: str, thread_id: str, limit: int = 20) -> list[dict[str, Any]]:
     rows = await _fetch(
         """
         SELECT *
         FROM chat_messages
         WHERE user_id = $1
+          AND thread_id = $2
         ORDER BY created_at DESC
-        LIMIT $2
+        LIMIT $3
         """,
         user_id,
+        thread_id,
         limit,
     )
     return _rows_to_dicts(list(reversed(rows)))
 
 
-async def list_chat_messages(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
-    return await get_chat_history(user_id, limit=limit)
+async def list_chat_messages(user_id: str, thread_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    return await get_chat_history(user_id, thread_id, limit=limit)
 
 
 def _normalize_emotions(value: Any) -> dict[str, float]:

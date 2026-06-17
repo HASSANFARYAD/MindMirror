@@ -24,7 +24,7 @@ export default function ChatPage() {
   return (
     <Suspense fallback={<div className="page-shell text-sm text-mindmirror-secondary">Loading chat...</div>}>
       <AuthGate>
-        <div className="page-shell">
+        <div className="page-shell h-full min-h-0">
           <ChatPageContent />
         </div>
       </AuthGate>

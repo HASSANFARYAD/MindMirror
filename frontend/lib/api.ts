@@ -25,6 +25,31 @@ export type JournalEntry = {
   created_at?: string | null;
 };
 
+export type ChatThreadSummary = {
+  id: string;
+  user_id: string;
+  journal_entry_id?: string | null;
+  title: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  last_message_preview?: string | null;
+  message_count?: number | null;
+  last_activity_at?: string | null;
+};
+
+export type ChatMessage = {
+  id: string;
+  user_id: string;
+  thread_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at?: string | null;
+};
+
+export type ChatThreadDetail = ChatThreadSummary & {
+  messages: ChatMessage[];
+};
+
 const apiPort = process.env.NEXT_PUBLIC_API_PORT ?? "8000";
 export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? `http://localhost:${apiPort}`;
 
@@ -96,7 +121,7 @@ export async function getEmotionalMap(userId: string): Promise<{
 }
 
 export async function streamChatMessage(
-  payload: { user_id: string; message: string; journal_entry_id?: string | null },
+  payload: { user_id: string; message: string; journal_entry_id?: string | null; thread_id?: string | null },
   onToken: (token: string) => void,
 ): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/chat/message`, {
@@ -129,4 +154,47 @@ export async function streamChatMessage(
       }
     }
   }
+}
+
+export async function listChatThreads(
+  userId: string,
+  options?: { search?: string; journalOnly?: boolean },
+): Promise<ChatThreadSummary[]> {
+  const params = new URLSearchParams({ user_id: userId });
+  if (options?.search) params.set("search", options.search);
+  params.set("journal_only", String(options?.journalOnly ?? true));
+  return requestJson<ChatThreadSummary[]>(`/chat/threads?${params.toString()}`);
+}
+
+export async function createChatThread(payload: {
+  user_id: string;
+  title: string;
+  journal_entry_id?: string | null;
+}): Promise<ChatThreadSummary> {
+  return requestJson<ChatThreadSummary>("/chat/threads", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getChatThread(threadId: string, userId: string): Promise<ChatThreadDetail> {
+  const params = new URLSearchParams({ user_id: userId });
+  return requestJson<ChatThreadDetail>(`/chat/threads/${threadId}?${params.toString()}`);
+}
+
+export async function renameChatThread(payload: {
+  thread_id: string;
+  user_id: string;
+  title: string;
+}): Promise<ChatThreadSummary> {
+  return requestJson<ChatThreadSummary>(`/chat/threads/${payload.thread_id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ user_id: payload.user_id, title: payload.title }),
+  });
+}
+
+export async function deleteChatThread(threadId: string, userId: string): Promise<void> {
+  await requestJson(`/chat/threads/${threadId}?user_id=${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+  });
 }

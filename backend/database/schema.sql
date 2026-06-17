@@ -21,10 +21,21 @@ CREATE TABLE journal_entries (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Chat threads table
+CREATE TABLE chat_threads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  journal_entry_id UUID REFERENCES journal_entries(id),
+  title TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Chat messages table
 CREATE TABLE chat_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id),
+  thread_id UUID REFERENCES chat_threads(id) ON DELETE CASCADE,
   role TEXT CHECK (role IN ('user', 'assistant')),
   content TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT NOW()
@@ -51,4 +62,3 @@ CREATE TABLE weekly_insights (
   cbt_recommendation TEXT,
   generated_at TIMESTAMP DEFAULT NOW()
 );
-
