@@ -72,11 +72,13 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
   const [recording, setRecording] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [isThinking, setIsThinking] = useState(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const voiceTimerRef = useRef<number | null>(null);
   const journalBootstrappedRef = useRef<string | null>(null);
+  const firstTokenSeenRef = useRef(false);
 
   const messages = activeThread?.messages ?? [];
   const activeThreadSummary = useMemo(
@@ -270,6 +272,8 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
     if (!trimmed || isSending) return;
 
     setIsSending(true);
+    setIsThinking(true);
+    firstTokenSeenRef.current = false;
     setSidebarError(null);
 
     try {
@@ -306,6 +310,10 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
           journal_entry_id: journalEntryId ?? undefined,
         },
         (token) => {
+          if (!firstTokenSeenRef.current) {
+            firstTokenSeenRef.current = true;
+            setIsThinking(false);
+          }
           assistantText += token;
           const streamedMessages: ChatMessage[] = [
             ...baseMessages,
@@ -338,6 +346,7 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
       }
     } finally {
       setIsSending(false);
+      setIsThinking(false);
     }
   }
 
@@ -551,7 +560,7 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7C3AED_0%,#EC4899_100%)] text-xs font-bold text-mindmirror-primary">
                         MM
                       </div>
-                      <p className="pt-1 text-mindmirror-secondary">{message.content || (isSending ? "Thinking..." : "")}</p>
+                      <p className="pt-1 text-mindmirror-secondary">{message.content}</p>
                     </div>
                   ) : (
                     <p>{message.content}</p>
@@ -564,10 +573,20 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
               Start a conversation or select a thread from the sidebar.
             </div>
           )}
-          {isSending ? (
-            <div className="flex items-center gap-2 text-sm text-mindmirror-muted">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-mindmirror-pink" />
-              MindMirror is responding...
+          {isThinking ? (
+            <div className="flex justify-start" role="status" aria-label="MindMirror is thinking">
+              <div className="max-w-[82%] rounded-[1.5rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-6 text-mindmirror-primary sm:max-w-[70%]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7C3AED_0%,#EC4899_100%)] text-xs font-bold text-mindmirror-primary">
+                    MM
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="thinking-dot" style={{ animationDelay: "0ms" }} />
+                    <span className="thinking-dot" style={{ animationDelay: "300ms" }} />
+                    <span className="thinking-dot" style={{ animationDelay: "600ms" }} />
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
         </div>

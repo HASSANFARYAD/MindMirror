@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from limits import limiter
+from rate_limit import limiter
 from models.user import UserCreate, UserOut
 from security import CurrentUser, create_access_token, get_current_user, hash_password, verify_password
 from services.memory_service import get_user_by_email, upsert_user

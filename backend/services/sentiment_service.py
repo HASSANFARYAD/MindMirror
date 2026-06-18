@@ -157,35 +157,63 @@ def _fallback_analysis(text: str) -> dict[str, Any]:
     }
 
 
+async def _pipeline_analysis(text: str) -> dict[str, Any]:
+    """Run the emotion pipeline when available and normalize the response."""
+    pipe = get_emotion_pipeline()
+    if pipe is None:
+        return _fallback_analysis(text)
+
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, pipe, text[:512])
+    except RuntimeError:
+        return _fallback_analysis(text)
+
+    items = _flatten_emotion_result(result)
+    emotions = {str(item.get("label", "")).lower(): float(item.get("score") or 0.0) for item in items if item.get("label")}
+    if not emotions:
+        return _fallback_analysis(text)
+
+    positive = emotions.get("joy", 0.0)
+    negative = emotions.get("sadness", 0.0) + emotions.get("anger", 0.0) + emotions.get("fear", 0.0) + emotions.get("disgust", 0.0)
+    sentiment_score = round(positive - (negative * 0.5), 3)
+    sentiment_score = max(-1.0, min(1.0, sentiment_score))
+    sentiment_label = "positive" if sentiment_score > 0.2 else "negative" if sentiment_score < -0.2 else "neutral"
+    dominant_emotion = max(emotions.items(), key=lambda item: item[1])[0]
+    return {
+        "sentiment_score": sentiment_score,
+        "sentiment_label": sentiment_label,
+        "dominant_emotion": dominant_emotion,
+        "emotions": emotions,
+    }
+
+
 async def analyze_entry(text: str) -> dict[str, Any]:
     try:
-        pipe = get_emotion_pipeline()
-        if pipe is None:
-            return _fallback_analysis(text)
-
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, pipe, text[:512])
-        items = _flatten_emotion_result(result)
-        emotions = {str(item.get("label", "")).lower(): float(item.get("score") or 0.0) for item in items if item.get("label")}
-        if not emotions:
-            return _fallback_analysis(text)
-
-        positive = emotions.get("joy", 0.0)
-        negative = emotions.get("sadness", 0.0) + emotions.get("anger", 0.0) + emotions.get("fear", 0.0) + emotions.get("disgust", 0.0)
-        sentiment_score = round(positive - (negative * 0.5), 3)
-        sentiment_score = max(-1.0, min(1.0, sentiment_score))
-        sentiment_label = "positive" if sentiment_score > 0.2 else "negative" if sentiment_score < -0.2 else "neutral"
-        dominant_emotion = max(emotions.items(), key=lambda item: item[1])[0]
-        return {
-            "sentiment_score": sentiment_score,
-            "sentiment_label": sentiment_label,
-            "dominant_emotion": dominant_emotion,
-            "emotions": emotions,
-            "cognitive_distortions": detect_distortions(text),
-        }
+        result = await _pipeline_analysis(text)
+        if "cognitive_distortions" not in result:
+            result["cognitive_distortions"] = detect_distortions(text)
+        return result
     except Exception as exc:  # pragma: no cover - external dependency fallback
         logger.exception("Emotion analysis failed: %s", exc)
         return _fallback_analysis(text)
+
+
+async def analyze_preview(text: str) -> dict[str, Any]:
+    """Return a lightweight preview without distortion analysis or persistence."""
+    try:
+        result = await _pipeline_analysis(text)
+        return {
+            "dominant_emotion": str(result.get("dominant_emotion") or "neutral"),
+            "sentiment_score": float(result.get("sentiment_score") or 0.0),
+        }
+    except Exception as exc:  # pragma: no cover - external dependency fallback
+        logger.exception("Emotion preview failed: %s", exc)
+        fallback = _fallback_analysis(text)
+        return {
+            "dominant_emotion": str(fallback.get("dominant_emotion") or "neutral"),
+            "sentiment_score": float(fallback.get("sentiment_score") or 0.0),
+        }
 
 
 def analyze_text(text: str) -> dict[str, Any]:
@@ -193,4 +221,3 @@ def analyze_text(text: str) -> dict[str, Any]:
         return asyncio.run(analyze_entry(text))
     except RuntimeError:
         return _fallback_analysis(text)
-

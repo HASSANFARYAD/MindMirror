@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
 
-from limits import limiter
+from rate_limit import limiter
 from routes import analysis, auth, chat, journal
 from services.claude_service import check_ollama_health
 from services.memory_service import ensure_base_schema, ensure_chat_schema, init_pool

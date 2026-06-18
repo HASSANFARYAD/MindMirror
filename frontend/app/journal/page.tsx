@@ -1,11 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthGate } from "@/components/AuthGate";
 import { JournalInput } from "@/components/JournalInput";
-import { InsightCard } from "@/components/InsightCard";
-import { normalizeEmotionScores } from "@/lib/sentiment";
 import { submitJournalEntry, transcribeVoice, type JournalAnalysis } from "@/lib/api";
 
 function JournalContent() {
@@ -17,8 +15,6 @@ function JournalContent() {
   const [error, setError] = useState<string | null>(null);
   const [journalId, setJournalId] = useState<string | null>(null);
   const [voicePreview, setVoicePreview] = useState<string | null>(null);
-
-  const emotionList = useMemo(() => (analysis ? normalizeEmotionScores(analysis.emotions) : []), [analysis]);
 
   async function handleVoiceCaptured(voiceBlob: Blob) {
     setError(null);
@@ -63,7 +59,7 @@ function JournalContent() {
   }
 
   return (
-    <div className="page-shell grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+    <div className="page-shell space-y-8">
       <div className="space-y-6">
         <div className="space-y-3">
           <h1 className="text-[48px] font-bold leading-[1.05] tracking-tight text-mindmirror-primary">
@@ -79,6 +75,7 @@ function JournalContent() {
           onSubmit={handleSubmit}
           onVoiceCaptured={handleVoiceCaptured}
           onTranscribing={setIsTranscribing}
+          analysis={analysis}
           isSubmitting={isSubmitting}
           validationError={error}
         />
@@ -154,59 +151,6 @@ function JournalContent() {
         {error ? <p className="text-sm text-[#FCA5A5]">{error}</p> : null}
         {isTranscribing ? <p className="text-sm text-mindmirror-secondary">Transcribing voice note...</p> : null}
       </div>
-
-      <aside className="space-y-5">
-        <section className="surface-card surface-card-hover rounded-2xl p-6">
-          <h2 className="text-base font-semibold text-mindmirror-primary">Analysis result</h2>
-          <p className="mt-2 text-sm text-mindmirror-secondary">Emotion summary and detected CBT patterns.</p>
-          {analysis ? (
-            <div className="mt-5 space-y-4">
-              <div className="rounded-2xl bg-[rgba(255,255,255,0.03)] p-4">
-                <p className="text-sm text-mindmirror-secondary">Sentiment</p>
-                <p className="mt-1 text-2xl font-semibold text-mindmirror-primary">{analysis.sentiment_label}</p>
-                <p className="text-sm text-mindmirror-secondary">{analysis.sentiment_score.toFixed(2)}</p>
-              </div>
-              <div className="space-y-3">
-                {emotionList.slice(0, 5).map((emotion) => (
-                  <div key={emotion.emotion} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="capitalize text-mindmirror-primary">{emotion.emotion}</span>
-                      <span className="text-mindmirror-secondary">{emotion.score.toFixed(2)}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-[rgba(255,255,255,0.08)]">
-                      <div
-                        className="h-2 rounded-full bg-[linear-gradient(90deg,#7C3AED_0%,#EC4899_100%)]"
-                        style={{ width: `${Math.max(emotion.score * 100, 5)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-mindmirror-primary">Detected distortions</p>
-                {analysis.cognitive_distortions.length ? (
-                  analysis.cognitive_distortions.map((distortion) => (
-                    <InsightCard
-                      key={`${distortion.type}-${distortion.evidence}`}
-                      title={distortion.type}
-                      description={distortion.evidence}
-                      badge={`${Math.round(distortion.confidence * 100)}% confidence`}
-                      severity="medium"
-                      icon="brain"
-                    />
-                  ))
-                ) : (
-                  <p className="text-sm text-mindmirror-secondary">No strong distortion pattern detected.</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-5 rounded-2xl border border-dashed border-[rgba(255,255,255,0.10)] p-6 text-sm text-mindmirror-muted">
-              Your analysis will appear here after submission.
-            </div>
-          )}
-        </section>
-      </aside>
     </div>
   );
 }

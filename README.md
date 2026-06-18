@@ -36,6 +36,16 @@ MindMirror is an AI-powered emotional health companion built around CBT principl
 
 People often notice distress, anxiety, or negative self-talk only after it has already shaped their day. MindMirror gives them a low-friction way to capture emotions, identify recurring cognitive distortions, and turn reflection into a gentle next step.
 
+## Features
+
+- Mood journaling with CBT-grounded emotional analysis
+- Real-time chat support with streaming responses
+- Emotional dashboard with trends, patterns, and weekly insight summaries
+- Growth Story view showing before-and-after emotional transformation
+- Live Emotion Preview while typing in the journal
+- Therapist Export with a printable private PDF summary
+- Demo Mode for one-click presentation-ready walkthroughs
+
 ## Architecture
 
 ```text

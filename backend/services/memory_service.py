@@ -277,7 +277,18 @@ async def get_recent_entries(user_id: str, days: int = 14) -> list[dict[str, Any
     return _rows_to_dicts(rows)
 
 
-async def list_journal_entries(user_id: str, days: int = 30) -> list[dict[str, Any]]:
+async def list_journal_entries(user_id: str, days: int | None = 30) -> list[dict[str, Any]]:
+    if days is None:
+        rows = await _fetch(
+            """
+            SELECT *
+            FROM journal_entries
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            """,
+            user_id,
+        )
+        return _rows_to_dicts(rows)
     return await get_recent_entries(user_id, days=days)
 
 

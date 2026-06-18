@@ -1,20 +1,29 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LogOut, Sparkles } from "lucide-react";
-import { getStoredSession, onAuthChange, refreshSession, signOutSession, type AuthSession } from "@/lib/auth";
+import { getStoredSession, onAuthChange, refreshSession, type AuthSession } from "@/lib/auth";
 
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/journal", label: "Journal" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/export", label: "Export for Therapist" },
   { href: "/chat", label: "Chat" },
 ];
 
+function appendDemoQuery(href: string, enabled: boolean): string {
+  if (!enabled || href.includes("demo=true")) return href;
+  return href.includes("?") ? `${href}&demo=true` : `${href}?demo=true`;
+}
+
 export function SiteHeader() {
+  const searchParams = useSearchParams();
   const [session, setSession] = useState<AuthSession | null>(null);
   const visibleNavItems = session ? navItems : navItems.slice(0, 1);
+  const preserveDemo = searchParams.get("demo") === "true";
 
   useEffect(() => {
     let active = true;
@@ -65,7 +74,7 @@ export function SiteHeader() {
             {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={appendDemoQuery(item.href, preserveDemo)}
                 className="rounded-full px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:text-mindmirror-primary"
               >
                 {item.label}
@@ -75,18 +84,13 @@ export function SiteHeader() {
 
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
             {session ? (
-              <button
-                type="button"
-                onClick={() => {
-                  signOutSession();
-                  setSession(null);
-                  window.location.replace("/login");
-                }}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.05)] px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:border-[rgba(255,255,255,0.35)] hover:text-mindmirror-primary"
+              <a
+                href="/logout"
+                className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.05)] px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:border-[rgba(255,255,255,0.35)] hover:text-mindmirror-primary"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out
-              </button>
+              </a>
             ) : (
               <>
                 <Link

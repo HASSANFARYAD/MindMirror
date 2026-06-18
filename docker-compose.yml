@@ -14,7 +14,7 @@ services:
              ollama pull llama3.2:3b &&
              wait"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:11434/api/tags >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -51,6 +51,7 @@ services:
       - PORT=8000
       - FRONTEND_PORT=3000
       - FRONTEND_ORIGIN=http://localhost:3000
+      - JWT_SECRET=${JWT_SECRET}
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=llama3.2:3b
       - DATABASE_URL=postgresql://mindmirror_user:mindmirror_pass@postgres:5432/mindmirror
@@ -92,7 +93,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "HOST_IP=$(hostname -i | awk '{print $1}'); wget -qO- http://$$HOST_IP:3000 >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 12

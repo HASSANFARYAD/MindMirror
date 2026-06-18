@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from limits import limiter
+from rate_limit import limiter
 from security import CurrentUser, get_current_user
 from services.claude_service import stream_chat_response
 from services.memory_service import (

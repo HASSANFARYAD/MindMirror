@@ -13,6 +13,48 @@ export type JournalAnalysis = {
   cognitive_distortions: Array<{ type: string; evidence: string; confidence: number }>;
 };
 
+export type EmotionPreview = {
+  dominant_emotion: string;
+  sentiment_score: number;
+};
+
+export type GrowthStory = {
+  show: boolean;
+  started: {
+    avg_sentiment: number;
+    dominant_emotion: string;
+    distortion_avg: number;
+    entry_count: number;
+    top_distortion: string;
+  };
+  now: {
+    avg_sentiment: number;
+    dominant_emotion: string;
+    distortion_avg: number;
+    entry_count: number;
+    top_distortion: string;
+  };
+  summary: string;
+};
+
+export type TherapistExportSummary = {
+  range_key: string;
+  range_label: string;
+  date_range_covered: {
+    start: string;
+    end: string;
+  };
+  generated_at: string;
+  average_sentiment_score: number;
+  dominant_emotions: Array<{ emotion: string; count: number }>;
+  cognitive_distortions: Array<{ type: string; count: number }>;
+  growth_moments_identified: string[];
+  weekly_insights_text: string;
+  total_journal_entries_analyzed: number;
+  therapist_summary: string;
+  disclaimer: string;
+};
+
 export type JournalEntry = {
   id: string;
   user_id: string;
@@ -166,6 +208,7 @@ export async function getEmotionalMap(): Promise<{
   timeline: EmotionPoint[];
   radar: Array<{ emotion: string; score: number }>;
   patterns: Array<{ id?: string; pattern_type: string; description: string; severity: string }>;
+  growth_story?: GrowthStory | null;
   weekly_insights: Array<{
     id: string;
     dominant_emotion?: string | null;
@@ -176,6 +219,19 @@ export async function getEmotionalMap(): Promise<{
   }>;
 }> {
   return requestJson(`/analysis/emotional-map`, { headers: buildHeaders(undefined, true) });
+}
+
+export async function previewEmotion(text: string): Promise<EmotionPreview> {
+  return requestJson<EmotionPreview>("/analysis/preview", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function getTherapistExport(range: "7" | "30" | "all"): Promise<TherapistExportSummary> {
+  return requestJson<TherapistExportSummary>(`/analysis/export?range=${encodeURIComponent(range)}`, {
+    headers: buildHeaders(undefined, true),
+  });
 }
 
 export async function streamChatMessage(

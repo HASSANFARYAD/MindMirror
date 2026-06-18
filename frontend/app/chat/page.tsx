@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthGate } from "@/components/AuthGate";
 import { ChatWindow } from "@/components/ChatWindow";
@@ -9,11 +9,6 @@ function ChatPageContent() {
   const params = useSearchParams();
   const entry = params.get("entry");
   const [bannerVisible, setBannerVisible] = useState(true);
-
-  useEffect(() => {
-    const dismissed = window.sessionStorage.getItem("mindmirror_chat_banner_dismissed") === "true";
-    setBannerVisible(!dismissed);
-  }, []);
 
   return (
     <div className="space-y-4">
@@ -31,7 +26,6 @@ function ChatPageContent() {
             aria-label="Dismiss safety banner"
             className="text-lg leading-none text-mindmirror-secondary transition hover:text-mindmirror-primary"
             onClick={() => {
-              window.sessionStorage.setItem("mindmirror_chat_banner_dismissed", "true");
               setBannerVisible(false);
             }}
           >

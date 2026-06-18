@@ -4,7 +4,7 @@ import base64
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile, status
 
-from limits import limiter
+from rate_limit import limiter
 from models.journal import JournalCreate, JournalEntryOut
 from security import CurrentUser, get_current_user
 from services.memory_service import get_journal_entry, list_journal_entries, save_journal_entry
@@ -35,6 +35,7 @@ async def voice_transcribe(
 @limiter.limit("10/minute")
 @router.post("/entry", response_model=JournalEntryOut)
 async def create_journal_entry(
+    request: Request,
     payload: JournalCreate,
     background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
