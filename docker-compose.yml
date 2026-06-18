@@ -41,9 +41,7 @@ services:
       start_period: 5s
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: mindmirrorregistry.azurecr.io/mindmirror-backend:latest   # ← CHANGED
     container_name: mindmirror_backend
     ports:
       - "8000:8000"
@@ -63,8 +61,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./backend:/app
-      - hf_cache:/app/.cache/huggingface
+      - hf_cache:/app/.cache/huggingface   # ← removed ./backend:/app (dev-only)
     restart: unless-stopped
     healthcheck:
       test:
@@ -78,9 +75,7 @@ services:
       start_period: 20s
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: mindmirrorregistry.azurecr.io/mindmirror-frontend:latest   # ← CHANGED
     container_name: mindmirror_frontend
     ports:
       - "3000:3000"
