@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
-import { DemoBanner } from "@/components/DemoBanner";
+// import { DemoBanner } from "@/components/DemoBanner";
 
 type AppShellProps = {
   children: ReactNode;
@@ -23,14 +23,14 @@ export function AppShell({ children }: AppShellProps) {
       </Suspense>
       <main
         className={`relative z-10 mx-auto w-full px-5 py-8 pb-20 md:px-12 lg:px-12 ${
-          isChatRoute ? "flex h-full min-h-0 flex-1 overflow-hidden" : "flex-1"
+          isChatRoute ? "flex flex-1 min-h-0 overflow-hidden" : "flex-1"
         }`}
       >
         {children}
       </main>
-      <Suspense fallback={null}>
+      {/* <Suspense fallback={null}>
         <DemoBanner />
-      </Suspense>
+      </Suspense> */}
     </div>
   );
 }

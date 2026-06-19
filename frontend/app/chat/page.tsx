@@ -11,7 +11,7 @@ function ChatPageContent() {
   const [bannerVisible, setBannerVisible] = useState(true);
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       {bannerVisible ? (
         <div
           className="flex items-start justify-between gap-4 rounded-lg border border-[rgba(255,179,71,0.3)] bg-[rgba(255,179,71,0.1)] px-4 py-3 text-sm text-mindmirror-primary"
@@ -42,7 +42,7 @@ export default function ChatPage() {
   return (
     <Suspense fallback={<div className="page-shell text-sm text-mindmirror-secondary">Loading chat...</div>}>
       <AuthGate>
-        <div className="page-shell h-full min-h-0">
+        <div className="page-shell flex h-full min-h-0 flex-col">
           <ChatPageContent />
         </div>
       </AuthGate>

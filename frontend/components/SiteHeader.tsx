@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -61,16 +61,10 @@ export function SiteHeader() {
             </span>
             MindMirror
           </Link>
-          {session ? (
-            <div className="hidden items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200 sm:flex">
-              <Sparkles className="h-3.5 w-3.5" />
-              Signed in as {session.user.email}
-            </div>
-          ) : null}
         </div>
 
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
-          <nav className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <nav className="flex flex-wrap items-center gap-4 sm:gap-6">
             {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
@@ -82,11 +76,11 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <div className="flex items-center gap-2 md:justify-end">
             {session ? (
               <a
                 href="/logout"
-                className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.05)] px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:border-[rgba(255,255,255,0.35)] hover:text-mindmirror-primary"
+                className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.05)] px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:border-[rgba(255,255,255,0.35)] hover:text-mindmirror-primary"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out

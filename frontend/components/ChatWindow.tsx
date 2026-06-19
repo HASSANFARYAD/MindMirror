@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { MessageSquareText, Mic, Pencil, Plus, Search, Send, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -418,7 +418,7 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
   const visibleThreads = threads;
 
   return (
-    <div className="mx-auto grid h-full min-h-0 w-full max-w-[1280px] gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+    <div className="mx-auto grid h-full min-h-0 w-full max-w-[1280px] gap-6 pb-20 lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="surface-card surface-card-hover flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl p-5">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
@@ -490,9 +490,11 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
                               : ""}
                           </span>
                         </div>
-                        <p className="mt-1 truncate text-xs text-mindmirror-secondary">
-                          {thread.last_message_preview || "No messages yet"}
-                        </p>
+                        {thread.last_message_preview ? (
+                          <p className="mt-1 truncate text-xs text-mindmirror-secondary">
+                            {thread.last_message_preview}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   </button>
@@ -540,13 +542,13 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
           </div>
         </div>
 
-        <div ref={viewportRef} className="scrollbar-hide min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+        <div ref={viewportRef} className="scrollbar-hide min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 pb-20">
           {loadingThread ? (
             <div className="rounded-2xl border border-dashed border-[rgba(255,255,255,0.10)] p-4 text-sm text-mindmirror-muted">
               Loading conversation...
             </div>
           ) : messages.length ? (
-            messages.map((message, index) => (
+            messages.filter((m) => !(m.role === "assistant" && !m.content)).map((message, index) => (
               <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[82%] rounded-[1.5rem] px-4 py-3 text-sm leading-6 sm:max-w-[70%] ${
@@ -576,11 +578,11 @@ export function ChatWindow({ journalEntryId, initialJournalContext }: ChatWindow
           {isThinking ? (
             <div className="flex justify-start" role="status" aria-label="MindMirror is thinking">
               <div className="max-w-[82%] rounded-[1.5rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-6 text-mindmirror-primary sm:max-w-[70%]">
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7C3AED_0%,#EC4899_100%)] text-xs font-bold text-mindmirror-primary">
                     MM
                   </div>
-                  <div className="flex items-center gap-1.5 pt-1">
+                  <div className="flex items-center gap-1.5 pt-3">
                     <span className="thinking-dot" style={{ animationDelay: "0ms" }} />
                     <span className="thinking-dot" style={{ animationDelay: "300ms" }} />
                     <span className="thinking-dot" style={{ animationDelay: "600ms" }} />

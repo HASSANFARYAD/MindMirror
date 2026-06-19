@@ -67,6 +67,11 @@ export function saveSession(session: AuthSession): void {
   window.dispatchEvent(new Event(AUTH_EVENT_NAME));
 }
 
+function persistSession(session: AuthSession): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+}
+
 export function clearSession(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -144,6 +149,6 @@ export async function refreshSession(): Promise<AuthSession | null> {
 
   const user = (await response.json()) as AuthUser;
   const nextSession = { ...session, user };
-  saveSession(nextSession);
+  persistSession(nextSession);
   return nextSession;
 }
