@@ -1,22 +1,29 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut, Sparkles } from "lucide-react";
-import { getStoredSession, onAuthChange, refreshSession, signOutSession, type AuthSession } from "@/lib/auth";
+import { getStoredSession, onAuthChange, refreshSession, type AuthSession } from "@/lib/auth";
 
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/journal", label: "Journal" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/export", label: "Export for Therapist" },
   { href: "/chat", label: "Chat" },
 ];
 
+function appendDemoQuery(href: string, enabled: boolean): string {
+  if (!enabled || href.includes("demo=true")) return href;
+  return href.includes("?") ? `${href}&demo=true` : `${href}?demo=true`;
+}
+
 export function SiteHeader() {
-  const router = useRouter();
+  const searchParams = useSearchParams();
   const [session, setSession] = useState<AuthSession | null>(null);
   const visibleNavItems = session ? navItems : navItems.slice(0, 1);
+  const preserveDemo = searchParams.get("demo") === "true";
 
   useEffect(() => {
     let active = true;
@@ -54,20 +61,14 @@ export function SiteHeader() {
             </span>
             MindMirror
           </Link>
-          {session ? (
-            <div className="hidden items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200 sm:flex">
-              <Sparkles className="h-3.5 w-3.5" />
-              Signed in as {session.user.email}
-            </div>
-          ) : null}
         </div>
 
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
-          <nav className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <nav className="flex flex-wrap items-center gap-4 sm:gap-6">
             {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={appendDemoQuery(item.href, preserveDemo)}
                 className="rounded-full px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:text-mindmirror-primary"
               >
                 {item.label}
@@ -75,21 +76,15 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <div className="flex items-center gap-2 md:justify-end">
             {session ? (
-              <button
-                type="button"
-                onClick={() => {
-                  signOutSession();
-                  setSession(null);
-                  router.replace("/");
-                  router.refresh();
-                }}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.05)] px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:border-[rgba(255,255,255,0.35)] hover:text-mindmirror-primary"
+              <a
+                href="/logout"
+                className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.05)] px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:border-[rgba(255,255,255,0.35)] hover:text-mindmirror-primary"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out
-              </button>
+              </a>
             ) : (
               <>
                 <Link

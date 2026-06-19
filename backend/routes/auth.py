@@ -1,53 +1,43 @@
 from __future__ import annotations
 
-import os
-from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from jose import JWTError, jwt
-from fastapi import APIRouter, Header, HTTPException, status
-
+from rate_limit import limiter
 from models.user import UserCreate, UserOut
-from services.memory_service import upsert_user
+from security import CurrentUser, create_access_token, get_current_user, hash_password, verify_password
+from services.memory_service import get_user_by_email, upsert_user
 
 router = APIRouter()
 
 
-def _issue_token(user_id: str, email: str) -> str:
-    """Create a signed JWT for the user session."""
-    secret = os.environ.get("JWT_SECRET", "dev-secret")
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "exp": datetime.now(timezone.utc) + timedelta(days=7),
-    }
-    return jwt.encode(payload, secret, algorithm="HS256")
-
-
+@limiter.limit("3/minute")
 @router.post("/register", response_model=dict)
-async def register_user(payload: UserCreate) -> dict:
-    """Register or upsert a user profile and return an access token."""
-    user = await upsert_user(str(payload.email), payload.name)
-    token = _issue_token(str(user["id"]), str(user["email"]))
+async def register_user(request: Request, payload: UserCreate) -> dict:
+    """Register a user with a hashed password and return a signed token."""
+    existing = await get_user_by_email(str(payload.email))
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
+    password_hash = hash_password(payload.password)
+    user = await upsert_user(str(payload.email), payload.name, password_hash=password_hash)
+    token = create_access_token(str(user["id"]), str(user["email"]))
     return {"user": UserOut(**user).model_dump(), "token": token}
 
 
+@limiter.limit("5/minute")
 @router.post("/login", response_model=dict)
-async def login_user(payload: UserCreate) -> dict:
-    """Return a token for a user record to keep the flow simple during setup."""
-    user = await upsert_user(str(payload.email), payload.name)
-    token = _issue_token(str(user["id"]), str(user["email"]))
+async def login_user(request: Request, payload: UserCreate) -> dict:
+    """Validate a user password and return a signed token."""
+    user = await get_user_by_email(str(payload.email))
+    if user is None or not user.get("password_hash"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    if not verify_password(payload.password, str(user["password_hash"])):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    token = create_access_token(str(user["id"]), str(user["email"]))
     return {"user": UserOut(**user).model_dump(), "token": token}
 
 
 @router.get("/me", response_model=UserOut)
-async def me(authorization: str | None = Header(default=None)) -> UserOut:
+async def me(current_user: CurrentUser = Depends(get_current_user)) -> UserOut:
     """Expose a minimal profile endpoint for session hydration."""
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
-    secret = os.environ.get("JWT_SECRET", "dev-secret")
-    token = authorization.split(" ", 1)[1]
-    try:
-        payload = jwt.decode(token, secret, algorithms=["HS256"])
-    except JWTError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
-    return UserOut(id=str(payload.get("sub") or ""), email=str(payload.get("email") or ""), name=None)
+    return UserOut(**current_user.model_dump())

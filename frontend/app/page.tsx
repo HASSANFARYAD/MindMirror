@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BrainCircuit, MessageSquareHeart, NotebookPen } from "lucide-react";
 import { HomeActions } from "@/components/HomeActions";
 
@@ -48,6 +49,20 @@ export default function HomePage() {
           <div className="fade-in-up" style={{ animationDelay: "300ms" }}>
             <HomeActions />
           </div>
+
+          <div className="fade-in-up" style={{ animationDelay: "360ms" }}>
+            <Link
+              href="/journal?demo=true"
+              className="inline-flex items-center justify-center rounded-full border border-dashed border-[rgba(108,99,255,0.5)] bg-transparent px-6 py-2.5 text-sm font-medium text-[#C4B5FD] transition duration-[180ms] ease-out hover:border-[rgba(108,99,255,0.75)] hover:bg-[rgba(108,99,255,0.08)] hover:text-mindmirror-primary"
+            >
+              Try Live Demo
+              <span className="ml-1">{"\u2192"}</span>
+            </Link>
+          </div>
+
+          <p className="fade-in-up max-w-xl text-xs leading-6 text-mindmirror-muted" style={{ animationDelay: "350ms" }}>
+            MindMirror is a reflective support tool, not a medical device or a substitute for professional care.
+          </p>
         </div>
 
         <div className="relative min-h-[420px] md:min-h-[520px]">

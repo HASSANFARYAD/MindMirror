@@ -13,6 +13,12 @@ services:
              sleep 5 &&
              ollama pull llama3.2:3b &&
              wait"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   postgres:
     image: postgres:16-alpine
@@ -35,9 +41,7 @@ services:
       start_period: 5s
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: mindmirrorregistry.azurecr.io/mindmirror-backend:latest   # ← CHANGED
     container_name: mindmirror_backend
     ports:
       - "8000:8000"
@@ -45,6 +49,7 @@ services:
       - PORT=8000
       - FRONTEND_PORT=3000
       - FRONTEND_ORIGIN=http://localhost:3000
+      - JWT_SECRET=${JWT_SECRET}
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=llama3.2:3b
       - DATABASE_URL=postgresql://mindmirror_user:mindmirror_pass@postgres:5432/mindmirror
@@ -52,28 +57,46 @@ services:
       - HF_HOME=/app/.cache/huggingface
     depends_on:
       ollama:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
     volumes:
-      - ./backend:/app
-      - hf_cache:/app/.cache/huggingface
+      - hf_cache:/app/.cache/huggingface   # ← removed ./backend:/app (dev-only)
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health')); raise SystemExit(0 if d.get('status') == 'ok' else 1)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   frontend:
+    # image: mindmirrorregistry.azurecr.io/mindmirror-frontend:latest   # ← CHANGED
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: mindmirror_frontend
     ports:
       - "3000:3000"
     environment:
       - PORT=3000
       - NEXT_PUBLIC_API_PORT=8000
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "HOST_IP=$(hostname -i | awk '{print $1}'); wget -qO- http://$$HOST_IP:3000 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
 volumes:
   ollama_data:

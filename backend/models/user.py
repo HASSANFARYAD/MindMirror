@@ -1,12 +1,13 @@
 from pydantic import BaseModel, Field
+from pydantic import EmailStr
 
 
 class UserCreate(BaseModel):
     """Validate an incoming auth or profile creation payload."""
 
-    email: str
+    email: EmailStr
     name: str | None = None
-    password: str | None = Field(default=None, min_length=8)
+    password: str = Field(min_length=8, max_length=128)
 
 
 class UserOut(BaseModel):

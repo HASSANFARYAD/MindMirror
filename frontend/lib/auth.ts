@@ -15,6 +15,19 @@ const AUTH_STORAGE_KEY = "mindmirror_auth_session";
 const ANON_STORAGE_KEY = "mindmirror_user_id";
 const AUTH_EVENT_NAME = "mindmirror-auth-change";
 
+async function readErrorMessage(response: Response): Promise<string> {
+  const detail = await response.text();
+  try {
+    const parsed = JSON.parse(detail) as { detail?: unknown };
+    if (typeof parsed.detail === "string" && parsed.detail.trim()) {
+      return parsed.detail;
+    }
+  } catch {
+    // Fall back to the raw response text.
+  }
+  return detail || `Request failed with status ${response.status}`;
+}
+
 function hasAuthUser(value: unknown): value is AuthUser {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
@@ -54,14 +67,25 @@ export function saveSession(session: AuthSession): void {
   window.dispatchEvent(new Event(AUTH_EVENT_NAME));
 }
 
+function persistSession(session: AuthSession): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+}
+
 export function clearSession(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
   window.dispatchEvent(new Event(AUTH_EVENT_NAME));
 }
 
+export function clearAnonymousUserId(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(ANON_STORAGE_KEY);
+}
+
 export function signOutSession(): void {
   clearSession();
+  clearAnonymousUserId();
 }
 
 export function onAuthChange(listener: () => void): () => void {
@@ -78,27 +102,33 @@ export function getSessionToken(): string | null {
   return getStoredSession()?.token ?? null;
 }
 
-async function authRequest(path: "/auth/login" | "/auth/register", body: { email: string; name?: string; password?: string }) {
+async function authRequest(path: "/auth/login" | "/auth/register", body: { email: string; name?: string; password: string }) {
+  const email = body.email.trim();
+  const name = body.name?.trim();
+  const password = body.password.trim();
+  if (!email || !password) {
+    throw new Error("Email and password are required.");
+  }
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ email, name: name || undefined, password }),
   });
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new Error(await readErrorMessage(response));
   }
 
   return (await response.json()) as AuthSession;
 }
 
-export async function loginWithJwt(body: { email: string; name?: string; password?: string }) {
+export async function loginWithJwt(body: { email: string; name?: string; password: string }) {
   return authRequest("/auth/login", body);
 }
 
-export async function registerWithJwt(body: { email: string; name?: string; password?: string }) {
+export async function registerWithJwt(body: { email: string; name?: string; password: string }) {
   return authRequest("/auth/register", body);
 }
 
@@ -113,12 +143,12 @@ export async function refreshSession(): Promise<AuthSession | null> {
   });
 
   if (!response.ok) {
-    clearSession();
+    signOutSession();
     return null;
   }
 
   const user = (await response.json()) as AuthUser;
   const nextSession = { ...session, user };
-  saveSession(nextSession);
+  persistSession(nextSession);
   return nextSession;
 }

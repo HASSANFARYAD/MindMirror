@@ -202,14 +202,20 @@ async def stream_chat_response(
         yield fallback
 
 
-async def get_weekly_insight(entries_summary: str, user_name: str) -> str:
+async def get_weekly_insight(entries_summary: str, user_name: str, tone: str = "weekly") -> str:
+    is_therapist_summary = "therapist" in tone.lower()
     prompt = (
-        f"You are writing a weekly CBT insight for {user_name}.\n"
+        f"You are writing a {tone} for {user_name}.\n"
         f"Entry summary:\n{entries_summary}\n\n"
-        "Return exactly three parts in a warm, concise tone:\n"
-        "1. One emotional pattern observation.\n"
-        "2. One CBT technique to practice.\n"
-        "3. One encouraging closing line."
+        + (
+            "Return exactly three concise sentences for a therapist-facing summary.\n"
+            "Each sentence should focus on progress, patterns, and the next helpful step."
+            if is_therapist_summary
+            else "Return exactly three parts in a warm, concise tone:\n"
+            "1. One emotional pattern observation.\n"
+            "2. One CBT technique to practice.\n"
+            "3. One encouraging closing line."
+        )
     )
 
     try:
@@ -218,7 +224,11 @@ async def get_weekly_insight(entries_summary: str, user_name: str) -> str:
             messages = [
                 {
                     "role": "system",
-                    "content": "You write warm, concise CBT insights with exactly three parts.",
+                    "content": (
+                        "You write warm, concise CBT insights with exactly three parts."
+                        if not is_therapist_summary
+                        else "You write concise therapist-facing CBT summaries in exactly three sentences."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ]

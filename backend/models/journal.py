@@ -6,8 +6,7 @@ from pydantic import BaseModel, Field
 class JournalCreate(BaseModel):
     """Validate a new journal entry request."""
 
-    user_id: str
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=10000)
     voice_file: str | None = None
 
 
@@ -23,4 +22,3 @@ class JournalEntryOut(BaseModel):
     emotions: dict[str, float] | None = None
     cognitive_distortions: list[dict] | None = None
     created_at: datetime | None = None
-

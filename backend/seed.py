@@ -6,9 +6,12 @@ import os
 import random
 import uuid
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 import asyncpg
 from passlib.hash import bcrypt
+
+SCHEMA_PATH = Path(__file__).resolve().parent / "database" / "schema.sql"
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -57,7 +60,38 @@ def phase_for_day(age_in_days: int) -> str:
 
 
 async def ensure_schema(conn: asyncpg.Connection) -> None:
+    await conn.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
     await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT")
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat_threads (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id),
+          journal_entry_id UUID REFERENCES journal_entries(id),
+          title TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+    await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS thread_id UUID")
+
+
+async def seed_demo_data(conn: asyncpg.Connection) -> bool:
+    """Seed the demo dataset idempotently."""
+    async with conn.transaction():
+        await ensure_schema(conn)
+        print("Seeding demo user...")
+        await seed_demo_user(conn)
+        print("Seeding 30 days of journal entries...")
+        await seed_journal_entries(conn, DEMO_USER_ID)
+        print("Seeding chat history...")
+        await seed_chat_history(conn, DEMO_USER_ID)
+        print("Seeding emotional patterns...")
+        await seed_patterns(conn, DEMO_USER_ID)
+        print("Seeding weekly insight...")
+        await seed_weekly_insight(conn, DEMO_USER_ID)
+    return True
 
 
 async def seed_demo_user(conn: asyncpg.Connection) -> None:
@@ -251,18 +285,33 @@ async def seed_chat_history(conn: asyncpg.Connection, user_id: uuid.UUID) -> Non
     base_date = date.today()
     message_id = 2001
     for age_in_days, user_text, assistant_text in pairs:
+        thread_id = fixed_uuid(2200 + age_in_days)
         message_date = base_date - timedelta(days=age_in_days)
         user_created_at = datetime(message_date.year, message_date.month, message_date.day, 9, 0)
         assistant_created_at = datetime(message_date.year, message_date.month, message_date.day, 9, 2)
 
         await conn.execute(
             """
-            INSERT INTO chat_messages (id, user_id, role, content, created_at)
-            VALUES ($1, $2, 'user', $3, $4)
+            INSERT INTO chat_threads (id, user_id, journal_entry_id, title, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $5)
+            ON CONFLICT (id) DO NOTHING
+            """,
+            thread_id,
+            user_id,
+            fixed_uuid(1001 + age_in_days),
+            user_text[:48],
+            user_created_at,
+        )
+
+        await conn.execute(
+            """
+            INSERT INTO chat_messages (id, user_id, thread_id, role, content, created_at)
+            VALUES ($1, $2, $3, 'user', $4, $5)
             ON CONFLICT (id) DO NOTHING
             """,
             fixed_uuid(message_id),
             user_id,
+            thread_id,
             user_text,
             user_created_at,
         )
@@ -270,12 +319,13 @@ async def seed_chat_history(conn: asyncpg.Connection, user_id: uuid.UUID) -> Non
 
         await conn.execute(
             """
-            INSERT INTO chat_messages (id, user_id, role, content, created_at)
-            VALUES ($1, $2, 'assistant', $3, $4)
+            INSERT INTO chat_messages (id, user_id, thread_id, role, content, created_at)
+            VALUES ($1, $2, $3, 'assistant', $4, $5)
             ON CONFLICT (id) DO NOTHING
             """,
             fixed_uuid(message_id),
             user_id,
+            thread_id,
             assistant_text,
             assistant_created_at,
         )
@@ -353,29 +403,13 @@ async def main() -> None:
     conn = await asyncpg.connect(DATABASE_URL)
 
     try:
-        async with conn.transaction():
-            print("Seeding demo user...")
-            await ensure_schema(conn)
-            await seed_demo_user(conn)
-
-            print("Seeding 30 days of journal entries...")
-            await seed_journal_entries(conn, DEMO_USER_ID)
-
-            print("Seeding chat history...")
-            await seed_chat_history(conn, DEMO_USER_ID)
-
-            print("Seeding emotional patterns...")
-            await seed_patterns(conn, DEMO_USER_ID)
-
-            print("Seeding weekly insight...")
-            await seed_weekly_insight(conn, DEMO_USER_ID)
+        await seed_demo_data(conn)
     finally:
         await conn.close()
 
     print("")
     print("✅ Seed complete!")
     print("   Demo login: demo@mindmirror.app")
-    print("   Password:   Demo1234!")
     print("   Open:       http://localhost:3000")
 
 

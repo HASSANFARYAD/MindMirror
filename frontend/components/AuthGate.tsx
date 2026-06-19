@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { clearSession, getStoredSession, refreshSession, type AuthSession } from "@/lib/auth";
+import { clearAnonymousUserId, clearSession, getStoredSession, refreshSession, type AuthSession } from "@/lib/auth";
 
 type AuthGateProps = {
   children: ReactNode;
@@ -21,12 +21,13 @@ export function AuthGate({ children }: AuthGateProps) {
 
     async function hydrate() {
       const target = `${window.location.pathname}${window.location.search}`;
+      const demoActive = new URLSearchParams(window.location.search).get("demo") === "true";
       const existing = getStoredSession();
 
       if (!existing) {
         if (active) {
           setSession(null);
-          router.replace(buildLoginUrl(target));
+          router.replace(`${buildLoginUrl(target)}${demoActive ? "&demo=true" : ""}`);
         }
         return;
       }
@@ -36,8 +37,9 @@ export function AuthGate({ children }: AuthGateProps) {
 
       if (!refreshed) {
         clearSession();
+        clearAnonymousUserId();
         setSession(null);
-        router.replace(buildLoginUrl(target));
+        router.replace(`${buildLoginUrl(target)}${demoActive ? "&demo=true" : ""}`);
         return;
       }
 

@@ -6,6 +6,7 @@ import os
 import re
 from collections import Counter
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from uuid import UUID
 from typing import Any
 
@@ -13,6 +14,7 @@ import asyncpg
 
 _pool: asyncpg.Pool | None = None
 _pool_lock = asyncio.Lock()
+_schema_path = Path(__file__).resolve().parents[1] / "database" / "schema.sql"
 
 
 def _default_database_url() -> str:
@@ -62,6 +64,109 @@ async def init_pool() -> asyncpg.Pool:
     return _pool
 
 
+async def ensure_base_schema() -> None:
+    """Create the base tables and any missing schema objects idempotently."""
+    pool = await _get_pool()
+
+    async with pool.acquire() as conn:
+        await conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+
+        if not await _table_exists(conn, "users"):
+            await conn.execute(
+                """
+                CREATE TABLE users (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  email TEXT UNIQUE NOT NULL,
+                  name TEXT,
+                  password_hash TEXT,
+                  created_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "journal_entries"):
+            await conn.execute(
+                """
+                CREATE TABLE journal_entries (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  content TEXT NOT NULL,
+                  voice_transcript TEXT,
+                  sentiment_score FLOAT,
+                  sentiment_label TEXT,
+                  emotions JSONB,
+                  cognitive_distortions JSONB,
+                  created_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "chat_threads"):
+            await conn.execute(
+                """
+                CREATE TABLE chat_threads (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  journal_entry_id UUID REFERENCES journal_entries(id),
+                  title TEXT NOT NULL,
+                  created_at TIMESTAMP DEFAULT NOW(),
+                  updated_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "chat_messages"):
+            await conn.execute(
+                """
+                CREATE TABLE chat_messages (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  thread_id UUID REFERENCES chat_threads(id) ON DELETE CASCADE,
+                  role TEXT CHECK (role IN ('user', 'assistant')),
+                  content TEXT NOT NULL,
+                  created_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "emotional_patterns"):
+            await conn.execute(
+                """
+                CREATE TABLE emotional_patterns (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  pattern_type TEXT,
+                  description TEXT,
+                  detected_at TIMESTAMP DEFAULT NOW(),
+                  severity TEXT
+                )
+                """
+            )
+
+        if not await _table_exists(conn, "weekly_insights"):
+            await conn.execute(
+                """
+                CREATE TABLE weekly_insights (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  user_id UUID REFERENCES users(id),
+                  week_start DATE,
+                  dominant_emotion TEXT,
+                  avg_sentiment FLOAT,
+                  top_triggers JSONB,
+                  cbt_recommendation TEXT,
+                  generated_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT")
+        await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS thread_id UUID")
+
+
+async def _table_exists(conn: asyncpg.Connection, table_name: str) -> bool:
+    return bool(await conn.fetchval("SELECT to_regclass($1) IS NOT NULL", f"public.{table_name}"))
+
+
 async def _get_pool() -> asyncpg.Pool:
     return await init_pool()
 
@@ -85,33 +190,39 @@ async def _execute(query: str, *args: Any) -> str:
 
 
 async def ensure_user_exists(user_id: str) -> None:
-    await _execute(
-        """
-        INSERT INTO users (id, email, name)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (id) DO NOTHING
-        """,
-        user_id,
-        f"{user_id}@local.mindmirror",
-        None,
-    )
+    row = await _fetchrow("SELECT id FROM users WHERE id = $1 LIMIT 1", user_id)
+    if row is None:
+        raise ValueError("User not found")
 
 
-async def upsert_user(email: str, name: str | None = None) -> dict[str, Any]:
+async def upsert_user(email: str, name: str | None = None, password_hash: str | None = None) -> dict[str, Any]:
     row = await _fetchrow(
         """
-        INSERT INTO users (email, name)
-        VALUES ($1, $2)
+        INSERT INTO users (email, name, password_hash)
+        VALUES ($1, $2, $3)
         ON CONFLICT (email)
-        DO UPDATE SET name = COALESCE(EXCLUDED.name, users.name)
+        DO UPDATE SET
+          name = COALESCE(EXCLUDED.name, users.name),
+          password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash)
         RETURNING *
         """,
         email,
         name,
+        password_hash,
     )
     if row is None:
         return {"id": "", "email": email, "name": name}
     return _record_to_dict(row) or {"id": "", "email": email, "name": name}
+
+
+async def get_user_by_email(email: str) -> dict[str, Any] | None:
+    row = await _fetchrow("SELECT * FROM users WHERE email = $1 LIMIT 1", email)
+    return _record_to_dict(row)
+
+
+async def get_user_by_id(user_id: str) -> dict[str, Any] | None:
+    row = await _fetchrow("SELECT * FROM users WHERE id = $1 LIMIT 1", user_id)
+    return _record_to_dict(row)
 
 
 async def insert_journal_entry(payload: dict[str, Any]) -> dict[str, Any]:
@@ -166,55 +277,215 @@ async def get_recent_entries(user_id: str, days: int = 14) -> list[dict[str, Any
     return _rows_to_dicts(rows)
 
 
-async def list_journal_entries(user_id: str, days: int = 30) -> list[dict[str, Any]]:
+async def list_journal_entries(user_id: str, days: int | None = 30) -> list[dict[str, Any]]:
+    if days is None:
+        rows = await _fetch(
+            """
+            SELECT *
+            FROM journal_entries
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            """,
+            user_id,
+        )
+        return _rows_to_dicts(rows)
     return await get_recent_entries(user_id, days=days)
 
 
-async def get_journal_entry(entry_id: str) -> dict[str, Any] | None:
-    row = await _fetchrow("SELECT * FROM journal_entries WHERE id = $1 LIMIT 1", entry_id)
+async def get_journal_entry(entry_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+    if user_id is None:
+        row = await _fetchrow("SELECT * FROM journal_entries WHERE id = $1 LIMIT 1", entry_id)
+    else:
+        row = await _fetchrow("SELECT * FROM journal_entries WHERE id = $1 AND user_id = $2 LIMIT 1", entry_id, user_id)
     return _record_to_dict(row)
 
+async def ensure_chat_schema() -> None:
+    await _execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat_threads (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id),
+          journal_entry_id UUID REFERENCES journal_entries(id),
+          title TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+    await _execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS thread_id UUID")
 
-async def save_chat_message(user_id: str, role: str, content: str) -> dict[str, Any]:
+
+async def create_chat_thread(user_id: str, title: str, journal_entry_id: str | None = None) -> dict[str, Any]:
     await ensure_user_exists(user_id)
     row = await _fetchrow(
         """
-        INSERT INTO chat_messages (user_id, role, content)
+        INSERT INTO chat_threads (user_id, title, journal_entry_id)
         VALUES ($1, $2, $3)
         RETURNING *
         """,
         user_id,
+        title,
+        journal_entry_id,
+    )
+    return _record_to_dict(row) if row else {"user_id": user_id, "title": title, "journal_entry_id": journal_entry_id}
+
+
+async def list_chat_threads(user_id: str, search: str | None = None, journal_only: bool = True) -> list[dict[str, Any]]:
+    rows = await _fetch(
+        """
+        SELECT
+          t.*,
+          COALESCE(
+            (SELECT COUNT(*) FROM chat_messages m WHERE m.thread_id = t.id),
+            0
+          ) AS message_count,
+          COALESCE(
+            (SELECT content FROM chat_messages m WHERE m.thread_id = t.id ORDER BY created_at DESC LIMIT 1),
+            ''
+          ) AS last_message_preview,
+          COALESCE(
+            (SELECT MAX(created_at) FROM chat_messages m WHERE m.thread_id = t.id),
+            t.updated_at,
+            t.created_at
+          ) AS last_activity_at
+        FROM chat_threads t
+        WHERE t.user_id = $1
+          AND ($2::boolean = false OR t.journal_entry_id IS NOT NULL)
+          AND (
+            $3::text IS NULL
+            OR t.title ILIKE '%' || $3 || '%'
+            OR EXISTS (
+              SELECT 1
+              FROM chat_messages m
+              WHERE m.thread_id = t.id
+                AND m.content ILIKE '%' || $3 || '%'
+            )
+          )
+        ORDER BY last_activity_at DESC
+        """,
+        user_id,
+        journal_only,
+        search.strip() if search and search.strip() else None,
+    )
+    return _rows_to_dicts(rows)
+
+
+async def get_chat_thread(thread_id: str, user_id: str) -> dict[str, Any] | None:
+    thread_row = await _fetchrow(
+        """
+        SELECT *
+        FROM chat_threads
+        WHERE id = $1
+          AND user_id = $2
+        LIMIT 1
+        """,
+        thread_id,
+        user_id,
+    )
+    thread = _record_to_dict(thread_row)
+    if thread is None:
+        return None
+    message_rows = await _fetch(
+        """
+        SELECT *
+        FROM chat_messages
+        WHERE thread_id = $1
+          AND user_id = $2
+        ORDER BY created_at ASC
+        """,
+        thread_id,
+        user_id,
+    )
+    thread["messages"] = _rows_to_dicts(message_rows)
+    return thread
+
+
+async def update_chat_thread(thread_id: str, user_id: str, title: str) -> dict[str, Any] | None:
+    row = await _fetchrow(
+        """
+        UPDATE chat_threads
+        SET title = $3,
+            updated_at = NOW()
+        WHERE id = $1
+          AND user_id = $2
+        RETURNING *
+        """,
+        thread_id,
+        user_id,
+        title,
+    )
+    return _record_to_dict(row)
+
+
+async def delete_chat_thread(thread_id: str, user_id: str) -> None:
+    await _execute(
+        """
+        DELETE FROM chat_threads
+        WHERE id = $1
+          AND user_id = $2
+        """,
+        thread_id,
+        user_id,
+    )
+
+
+async def save_chat_message(user_id: str, thread_id: str, role: str, content: str) -> dict[str, Any]:
+    await ensure_user_exists(user_id)
+    thread = await _fetchrow("SELECT id FROM chat_threads WHERE id = $1 AND user_id = $2 LIMIT 1", thread_id, user_id)
+    if thread is None:
+        raise ValueError("Chat thread not found")
+    row = await _fetchrow(
+        """
+        INSERT INTO chat_messages (user_id, thread_id, role, content)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+        """,
+        user_id,
+        thread_id,
         role,
         content,
     )
-    return _record_to_dict(row) if row else {"user_id": user_id, "role": role, "content": content}
+    await _execute(
+        """
+        UPDATE chat_threads
+        SET updated_at = NOW()
+        WHERE id = $1
+          AND user_id = $2
+        """,
+        thread_id,
+        user_id,
+    )
+    return _record_to_dict(row) if row else {"user_id": user_id, "thread_id": thread_id, "role": role, "content": content}
 
 
 async def insert_chat_message(payload: dict[str, Any]) -> dict[str, Any]:
     return await save_chat_message(
         str(payload.get("user_id") or ""),
+        str(payload.get("thread_id") or ""),
         str(payload.get("role") or "user"),
         str(payload.get("content") or ""),
     )
 
 
-async def get_chat_history(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+async def get_chat_history(user_id: str, thread_id: str, limit: int = 20) -> list[dict[str, Any]]:
     rows = await _fetch(
         """
         SELECT *
         FROM chat_messages
         WHERE user_id = $1
+          AND thread_id = $2
         ORDER BY created_at DESC
-        LIMIT $2
+        LIMIT $3
         """,
         user_id,
+        thread_id,
         limit,
     )
     return _rows_to_dicts(list(reversed(rows)))
 
 
-async def list_chat_messages(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
-    return await get_chat_history(user_id, limit=limit)
+async def list_chat_messages(user_id: str, thread_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    return await get_chat_history(user_id, thread_id, limit=limit)
 
 
 def _normalize_emotions(value: Any) -> dict[str, float]:
@@ -409,7 +680,7 @@ async def list_patterns(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
 async def get_emotional_map(user_id: str, days: int = 30) -> dict[str, Any]:
     entries = await get_recent_entries(user_id, days=days)
     timeline = []
-    for entry in entries[:30]:
+    for entry in reversed(entries[:30]):
         emotions = _normalize_emotions(entry.get("emotions"))
         timeline.append(
             {
@@ -421,7 +692,7 @@ async def get_emotional_map(user_id: str, days: int = 30) -> dict[str, Any]:
             }
         )
 
-    labels = ["joy", "sadness", "fear", "anger", "surprise", "neutral"]
+    labels = ["joy", "sadness", "fear", "anger", "surprise", "neutral", "disgust"]
     totals = {label: 0.0 for label in labels}
     count = max(len(entries[:7]), 1)
     for entry in entries[:7]:
