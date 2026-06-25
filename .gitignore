@@ -11,3 +11,4 @@ backend/.venv/
 backend/.pytest_cache/
 *.zip
 .vercel
+appdocs/*
