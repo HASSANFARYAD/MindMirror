@@ -8,10 +8,9 @@ export type AuthUser = {
 
 export type AuthSession = {
   user: AuthUser;
-  token: string;
 };
 
-const AUTH_STORAGE_KEY = "mindmirror_auth_session";
+const SESSION_STORAGE_KEY = "mindmirror_session";
 const ANON_STORAGE_KEY = "mindmirror_user_id";
 const AUTH_EVENT_NAME = "mindmirror-auth-change";
 
@@ -37,12 +36,12 @@ function hasAuthUser(value: unknown): value is AuthUser {
 function hasAuthSession(value: unknown): value is AuthSession {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
-  return typeof candidate.token === "string" && hasAuthUser(candidate.user);
+  return hasAuthUser(candidate.user);
 }
 
 export function getStoredSession(): AuthSession | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+  const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -63,18 +62,18 @@ export function getAnonymousUserId(): string {
 
 export function saveSession(session: AuthSession): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
   window.dispatchEvent(new Event(AUTH_EVENT_NAME));
 }
 
 function persistSession(session: AuthSession): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
 }
 
 export function clearSession(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  window.localStorage.removeItem(SESSION_STORAGE_KEY);
   window.dispatchEvent(new Event(AUTH_EVENT_NAME));
 }
 
@@ -86,6 +85,8 @@ export function clearAnonymousUserId(): void {
 export function signOutSession(): void {
   clearSession();
   clearAnonymousUserId();
+  // Tell the backend to clear the HttpOnly cookie.
+  fetch(`${apiBaseUrl}/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
 }
 
 export function onAuthChange(listener: () => void): () => void {
@@ -98,11 +99,10 @@ export function getSessionUserId(fallback = "demo-user"): string {
   return getStoredSession()?.user.id ?? (typeof window === "undefined" ? fallback : getAnonymousUserId());
 }
 
-export function getSessionToken(): string | null {
-  return getStoredSession()?.token ?? null;
-}
-
-async function authRequest(path: "/auth/login" | "/auth/register", body: { email: string; name?: string; password: string }) {
+async function authRequest(
+  path: "/auth/login" | "/auth/register",
+  body: { email: string; name?: string; password: string },
+): Promise<AuthSession> {
   const email = body.email.trim();
   const name = body.name?.trim();
   const password = body.password.trim();
@@ -111,6 +111,7 @@ async function authRequest(path: "/auth/login" | "/auth/register", body: { email
   }
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -121,7 +122,8 @@ async function authRequest(path: "/auth/login" | "/auth/register", body: { email
     throw new Error(await readErrorMessage(response));
   }
 
-  return (await response.json()) as AuthSession;
+  const data = (await response.json()) as { user: AuthUser };
+  return { user: data.user };
 }
 
 export async function loginWithJwt(body: { email: string; name?: string; password: string }) {
@@ -134,12 +136,10 @@ export async function registerWithJwt(body: { email: string; name?: string; pass
 
 export async function refreshSession(): Promise<AuthSession | null> {
   const session = getStoredSession();
-  if (!session?.token) return null;
+  if (!session?.user) return null;
 
   const response = await fetch(`${apiBaseUrl}/auth/me`, {
-    headers: {
-      Authorization: `Bearer ${session.token}`,
-    },
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -148,7 +148,7 @@ export async function refreshSession(): Promise<AuthSession | null> {
   }
 
   const user = (await response.json()) as AuthUser;
-  const nextSession = { ...session, user };
+  const nextSession = { user };
   persistSession(nextSession);
   return nextSession;
 }
