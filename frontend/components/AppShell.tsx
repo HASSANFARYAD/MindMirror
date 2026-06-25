@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
+import { CrisisBanner } from "@/components/CrisisBanner";
 import { SiteHeader } from "@/components/SiteHeader";
 // import { DemoBanner } from "@/components/DemoBanner";
 
@@ -18,6 +19,7 @@ export function AppShell({ children }: AppShellProps) {
     <div
       className={`relative flex ${isChatRoute ? "h-dvh overflow-hidden" : "min-h-screen overflow-x-hidden overflow-y-auto"} flex-col bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.16),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(236,72,153,0.12),transparent_22%),linear-gradient(180deg,#0D0B1A_0%,#0D0B1A_100%)]`}
     >
+      <CrisisBanner />
       <Suspense fallback={null}>
         <SiteHeader />
       </Suspense>
