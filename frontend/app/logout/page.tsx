@@ -2,15 +2,24 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { apiBaseUrl } from "@/lib/api";
 import { signOutSession } from "@/lib/auth";
 
 export default function LogoutPage() {
   const router = useRouter();
 
   useEffect(() => {
-    signOutSession();
-    router.replace("/login");
-    router.refresh();
+    async function logout() {
+      try {
+        await fetch(`${apiBaseUrl}/auth/logout`, { method: "POST", credentials: "include" });
+      } catch {
+        // Proceed with local cleanup even if backend is unreachable.
+      }
+      signOutSession();
+      router.replace("/login");
+      router.refresh();
+    }
+    void logout();
   }, [router]);
 
   return (

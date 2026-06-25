@@ -105,19 +105,19 @@ export function AuthForm({ mode }: AuthFormProps) {
         </div>
         <div className="space-y-4">
           <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            {mode === "login" ? "Sign in with your JWT session" : "Join MindMirror in a few seconds"}
+            {mode === "login" ? "Sign in with your existing account" : "Join MindMirror in a few seconds"}
           </h1>
           <p className="max-w-xl text-base leading-7 text-white/65">
             {mode === "login"
-              ? "Use the existing backend auth route to mint a JWT and restore your saved session locally."
-              : "Create a profile, receive a JWT from the backend, and continue into the app immediately."}
+              ? "Your session is secured with an HttpOnly cookie — no tokens stored on the client."
+              : "Create a profile and continue into the app immediately."}
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           {[
-            ["JWT token", "Stored locally for the browser session."],
-            ["/auth/me", "Used to refresh the signed-in user."],
-            ["FastAPI", "Backed by the existing auth routes."],
+            ["HttpOnly cookie", "JWT is stored server-side, invisible to JavaScript."],
+            ["Auto-refresh", "Session persists across tabs without client-side tokens."],
+            ["FastAPI", "Backed by the existing auth routes with bcrypt password hashing."],
           ].map(([title, description]) => (
             <article key={title} className="glass-card rounded-[1.5rem] p-4">
               <p className="text-sm font-medium text-white">{title}</p>
