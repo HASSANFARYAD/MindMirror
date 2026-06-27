@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import type { ReactNode } from "react";
@@ -12,12 +12,15 @@ export const metadata: Metadata = {
   title: "MindMirror",
   description: "AI-powered CBT companion for emotional reflection and support.",
   manifest: "/manifest.json",
-  themeColor: "#7C3AED",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "MindMirror",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#7C3AED",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
