@@ -1,8 +1,8 @@
 # MindMirror — Pre-Submission Security & Quality Audit Report
-Generated: 2026-06-17
+Generated: 2026-06-27 (updated from 2026-06-17)
 
 ## Executive Summary
-I found several high-risk auth, isolation, startup, and safety issues in the original codebase, but the code now has those critical/high gaps fixed. The app builds successfully after the changes, the backend compiles cleanly, and the major security controls now derive identity from JWT rather than request payloads. Remaining gaps are mostly verification-related: live CVE age checks, a fresh PostgreSQL seed run in this environment, and full device-based UI QA.
+I found several high-risk auth, isolation, startup, and safety issues in the original codebase, but the code now has those critical/high gaps fixed. The app builds successfully after the changes, the backend compiles cleanly, and the major security controls now derive identity from JWT rather than request payloads. The full test suite has been overhauled: 114 backend tests and 20 frontend tests all pass. Remaining gaps are mostly verification-related: live CVE age checks, a fresh PostgreSQL seed run in this environment, and full device-based UI QA.
 
 ## Findings by Severity
 
@@ -124,7 +124,7 @@ I found several high-risk auth, isolation, startup, and safety issues in the ori
 - [backend/security.py](/backend/security.py): Added JWT secret loading from env, 24h expiry, bcrypt hashing/verification, and a single `get_current_user` dependency.
 - [backend/routes/auth.py](/backend/routes/auth.py): Reworked login/register to enforce passwords, reject duplicate registration, and use JWT-backed `/auth/me`.
 - [backend/routes/journal.py](/backend/routes/journal.py): Removed request `user_id`, added auth dependency, capped audio size, and preserved voice transcript handling.
-- [backend/routes/chat.py](/backend/routes/chat.py): Removed request `user_id`, added auth dependency, added per-user thread access checks, and rate-limited message streaming.
+- [backend/routes/chat.py](/backend/routes/chat.py): Removed request `user_id`, added auth dependency, added per-user thread access checks, and rate-limited message streaming. Moved thread existence check outside streaming generator to return proper 404 before response starts.
 - [backend/routes/analysis.py](/backend/routes/analysis.py): Switched emotional-map lookup to JWT identity and added the 7th emotion bucket.
 - [backend/main.py](/backend/main.py): Added SlowAPI middleware, custom 429 message, versioned `/health`, and structured readiness checks.
 - [backend/seed.py](/backend/seed.py): Made schema bootstrapping work from a fresh DB and removed secret-printing of the demo password.
@@ -140,6 +140,10 @@ I found several high-risk auth, isolation, startup, and safety issues in the ori
 - [frontend/app/chat/page.tsx](/frontend/app/chat/page.tsx): Added the dismissible crisis banner.
 - [frontend/app/not-found.tsx](/frontend/app/not-found.tsx): Added a dedicated 404 page with a return path to Journal.
 - [frontend/app/page.tsx](/frontend/app/page.tsx): Added the landing-page disclaimer.
+- [backend/tests/conftest.py](/backend/tests/conftest.py): Added mock DB, autouse `mock_services` fixture patching module-level imports, `get_emotional_map` mock, async `get_current_user` override, `_reset_mock_db` fixture for test isolation.
+- [frontend/vitest.config.ts](/frontend/vitest.config.ts): Vitest configuration with React plugin, jsdom environment, `@/` path alias, and jest-dom setup.
+- [frontend/tests/setup.ts](/frontend/tests/setup.ts): Global `@testing-library/jest-dom` import for DOM matchers.
+- [frontend/tests/](/frontend/tests/): 20 tests across utility (`sentiment.ts`) and component (`CrisisBanner.tsx`) files.
 - [.gitignore](/.gitignore): Added the required ignore entries for env, cache, build, and dependency artifacts.
 - [.env](/.env): Redacted the real local secret values.
 - [.env.example](/.env.example): Normalized placeholders to the required format.
@@ -148,6 +152,11 @@ I found several high-risk auth, isolation, startup, and safety issues in the ori
 - Dependency CVE and release-age checks were not live-verified against an external advisory database in this session.
 - `python backend/seed.py` is now fresh-db safe in code, but I did not run it against a live PostgreSQL instance here because no database service was attached to this workspace.
 - Color contrast, keyboard-only flow, and mobile behavior were reviewed from code and build output, but not fully exercised on physical devices.
+
+## Resolved Since Audit
+- Backend test suite fixed: 114/114 tests pass (was 26 failures + 48 setup errors). Root causes included module-level import capture, missing `get_emotional_map` mock, async/await mismatches, `Header()` default evaluation outside FastAPI DI, and shared state across tests.
+- Frontend test infrastructure set up: Vitest + React Testing Library + jsdom, 20 tests across utility and component test files, all passing.
+- All feature branches (`safety/crisis-banner`, `security/httponly-cookies`, `feature/backend-tests`, `feature/frontend-tests`) merged into `dev`.
 
 ## Hackathon Readiness Score
 - Innovation:          8/10
@@ -166,6 +175,8 @@ I found several high-risk auth, isolation, startup, and safety issues in the ori
 - [ ] Chat response streams correctly
 - [ ] Dashboard shows populated charts
 - [ ] Voice recording → transcript → journal flow works
+- [ ] Backend tests pass: `cd backend && python -m pytest` → 114/114
+- [ ] Frontend tests pass: `cd frontend && npm test` → 20/20
 - [ ] All Critical and High findings are FIXED
 - [ ] .env is NOT committed to git
 - [ ] AUDIT_REPORT.md is committed to the repo
@@ -181,6 +192,8 @@ I found several high-risk auth, isolation, startup, and safety issues in the ori
 | Confetti moment | dashboard/page.tsx | UI/UX +0.5 |
 | Demo mode banner | DemoBanner.tsx, layout.tsx | Demo Ready +2 |
 | Therapist export | export/page.tsx, analysis route | Impact +1 |
+| Backend test suite (114 tests) | conftest.py, test_*.py, security.py, routes/chat.py | Tech Depth +1 |
+| Frontend test infra (20 tests) | vitest.config.ts, tests/ | Tech Depth +1 |
 
 Updated score:
 - Innovation:          10/10
