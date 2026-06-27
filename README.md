@@ -31,6 +31,7 @@ Wait for `"Ollama is ready!"` and `"Whisper ready."` in logs (~5 mins first run)
 - **Therapist export** — printable clinical summary
 - **Pattern detection** — triggers, weekly cycles, growth streaks, alert conditions
 - **Email verification** — via Resend (auto-sent on register, manual resend available)
+- **Push notifications** — daily check-in reminders + pattern alerts via Web Push + email
 - **Offline-first PWA** — service worker with caching, manifest, installable
 - **Dark glassmorphism UI** — custom gradients, animations, responsive
 - **Demo mode** — 30-day 3-phase emotional arc with deterministic seed data
@@ -92,6 +93,9 @@ See `.env.example` for all options. Key ones:
 | `DATABASE_URL` | No | Docker default | Cloud DB connection string |
 | `RESEND_API_KEY` | No | — | Optional — enables email verification |
 | `RESEND_FROM_EMAIL` | No | `onboarding@resend.dev` | Sender address |
+| `VAPID_PRIVATE_KEY` | No | — | Push notifications private key (see Push Notifications section) |
+| `VAPID_PUBLIC_KEY` | No | — | Push notifications public key |
+| `VAPID_CLAIM_EMAIL` | No | `mailto:admin@mindmirror.app` | Contact email in push payload |
 
 ## How the CBT AI Works
 
@@ -102,6 +106,47 @@ Each chat response silently applies a 5-step framework:
 3. **Ask** one Socratic question to examine the thought
 4. **Ground** if distress is high (breathing, sensory check-in)
 5. **Close** with a warm, concrete next step
+
+## Push Notifications
+
+MindMirror sends daily check-in reminders and pattern alerts via **browser push** + **email** (fallback).
+
+### Setup (one-time)
+
+Generate a VAPID key pair and add it to your `.env`:
+
+```bash
+pip install pywebpush && python3 -c "
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
+import base64
+key = ec.generate_private_key(ec.SECP256R1())
+priv = base64.urlsafe_b64encode(
+    key.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+).rstrip('=').decode()
+pub = base64.urlsafe_b64encode(
+    key.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+).rstrip('=').decode()
+print(f'VAPID_PRIVATE_KEY={priv}')
+print(f'VAPID_PUBLIC_KEY={pub}')
+"
+```
+
+Copy the two output values into your `.env` file:
+
+```text
+VAPID_PRIVATE_KEY=<long-base64-string>
+VAPID_PUBLIC_KEY=<long-base64-string>
+```
+
+For production (Render), paste them in **Render Dashboard → Backend Service → Environment Variables**. These keys are permanent — set once, never change.
+
+### How it works
+- Users enable notifications via the bell icon in the header (requests browser permission)
+- Backend scheduler runs **hourly**: checks who hasn't journaled today → sends push + email reminder
+- **Every 6 hours**: checks for high-severity pattern alerts (3 consecutive negative days) → sends alert
+- Clicking a notification opens the journal page
+- No VAPID keys = email-only mode (if Resend is configured). No Resend key = push still works.
 
 ## Testing
 

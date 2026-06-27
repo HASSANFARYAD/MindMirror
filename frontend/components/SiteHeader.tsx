@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LogOut, Sparkles } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { getStoredSession, onAuthChange, refreshSession, type AuthSession } from "@/lib/auth";
+import { PushManager } from "@/components/PushManager";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -78,6 +79,8 @@ export function SiteHeader() {
 
           <div className="flex items-center gap-2 md:justify-end">
             {session ? (
+              <>
+              <PushManager />
               <a
                 href="/logout"
                 className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.05)] px-4 py-2 text-sm text-mindmirror-secondary transition-colors duration-200 ease-out hover:border-[rgba(255,255,255,0.35)] hover:text-mindmirror-primary"
