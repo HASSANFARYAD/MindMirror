@@ -16,3 +16,16 @@ class UserOut(BaseModel):
     id: str
     email: str
     name: str | None = None
+    email_verified: bool = False
+
+
+class VerificationSendRequest(BaseModel):
+    """Trigger a verification email for the current user."""
+
+    pass
+
+
+class VerificationConfirmRequest(BaseModel):
+    """Verify email with a token."""
+
+    token: str

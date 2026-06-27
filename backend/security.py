@@ -18,6 +18,7 @@ class CurrentUser(BaseModel):
     id: str
     email: str
     name: str | None = None
+    email_verified: bool = False
 
 
 def get_jwt_secret() -> str:
@@ -104,4 +105,9 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    return CurrentUser(id=user_id, email=email, name=user.get("name"))
+    return CurrentUser(
+        id=user_id,
+        email=email,
+        name=user.get("name"),
+        email_verified=bool(user.get("email_verified", False)),
+    )

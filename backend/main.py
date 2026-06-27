@@ -13,6 +13,7 @@ from rate_limit import limiter
 from routes import analysis, auth, chat, journal
 from services.claude_service import check_ollama_health
 from services.memory_service import ensure_base_schema, ensure_chat_schema, init_pool
+from services.migration import run_migrations
 from services.sentiment_service import get_emotion_pipeline
 from services.whisper_service import get_model
 from seed import seed_demo_data
@@ -66,10 +67,17 @@ async def startup_event() -> None:
             print("Warning: Ollama not ready yet")
 
     pool = await init_pool()
-    await ensure_base_schema()
+
+    # Run Alembic migrations (primary schema management)
+    try:
+        await run_migrations()
+    except Exception as exc:
+        print(f"Alembic migration failed, falling back to raw schema: {exc}")
+        await ensure_base_schema()
+        await ensure_chat_schema()
+
     async with pool.acquire() as conn:
         await seed_demo_data(conn)
-    await ensure_chat_schema()
     preload_results = await asyncio.gather(
         asyncio.to_thread(get_model),
         asyncio.to_thread(get_emotion_pipeline),
