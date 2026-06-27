@@ -90,6 +90,8 @@ People often notice distress, anxiety, or negative self-talk only after it has a
 - Hugging Face Transformers
 - OpenAI Whisper
 - SSE streaming
+- Vitest + React Testing Library (frontend tests)
+- pytest + pytest-asyncio (backend tests)
 
 ## Setup
 
@@ -122,3 +124,19 @@ Placeholder for product screenshots.
 ## Demo Video
 
 Placeholder for a demo video link.
+
+## Testing
+
+### Backend (pytest)
+```bash
+cd backend && python -m pytest -v
+```
+114 tests covering auth, sentiment analysis, pattern detection, journal, chat, and security.
+
+### Frontend (Vitest)
+```bash
+cd frontend && npm test
+```
+20 tests covering utility functions (`sentiment.ts`) and component rendering/interaction (`CrisisBanner.tsx`). Run `npm run test:watch` for watch mode.
+
+Both suites run independently — no API keys or external services required.
