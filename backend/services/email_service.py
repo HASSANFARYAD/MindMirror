@@ -41,3 +41,33 @@ def send_verification_email(user: UserOut, token: str) -> None:
         "html": html,
     }
     resend.Emails.send(params)
+
+
+def send_notification_email(user: UserOut, title: str, body: str) -> None:
+    _get_client()
+    journal_url = f"{FRONTEND_ORIGIN}/journal"
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0D0B1A; color: #E2E8F0; padding: 32px;">
+      <div style="max-width: 480px; margin: 0 auto; background: #1E1B3A; border-radius: 16px; padding: 32px; border: 1px solid rgba(124,58,237,0.3);">
+        <h1 style="font-size: 24px; margin: 0 0 16px; color: #C4B5FD;">{title}</h1>
+        <p style="line-height: 1.6; margin: 0 0 24px;">{body}</p>
+        <a href="{journal_url}" style="display: inline-block; background: linear-gradient(135deg, #7C3AED, #EC4899); color: white; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 600; font-size: 16px;">Open MindMirror</a>
+        <p style="margin-top: 24px; font-size: 14px; color: #94A3B8;">You received this because you enabled notifications in your MindMirror settings.</p>
+      </div>
+    </body>
+    </html>
+    """
+    params = {
+        "from": FROM_EMAIL,
+        "to": [user.email],
+        "subject": f"{title} — MindMirror",
+        "html": html,
+    }
+    try:
+        resend.Emails.send(params)
+    except Exception as exc:
+        logger = __import__("logging").getLogger(__name__)
+        logger.warning("Failed to send notification email to %s: %s", user.email, exc)
