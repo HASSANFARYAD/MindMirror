@@ -79,7 +79,7 @@ export function SiteHeader() {
 
           <div className="flex items-center gap-2 md:justify-end">
             {session ? (
-              <>
+              <div className="flex items-center gap-2">
               <PushManager />
               <a
                 href="/logout"
@@ -88,6 +88,7 @@ export function SiteHeader() {
                 <LogOut className="h-4 w-4" />
                 Sign out
               </a>
+              </div>
             ) : (
               <>
                 <Link
