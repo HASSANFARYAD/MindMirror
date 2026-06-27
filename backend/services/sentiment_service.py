@@ -6,7 +6,10 @@ import os
 import re
 from typing import Any
 
-from transformers import pipeline
+try:
+    from transformers import pipeline
+except ImportError:
+    pipeline = None
 
 logger = logging.getLogger(__name__)
 

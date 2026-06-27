@@ -307,3 +307,42 @@ export async function verifyEmail(token: string): Promise<{ detail: string }> {
     `/auth/verify-email?token=${encodeURIComponent(token)}`,
   );
 }
+
+// ─── Notifications ──────────────────────────────────────────────────────
+
+export type PushSubscriptionPayload = {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+};
+
+export async function getVapidPublicKey(): Promise<{ publicKey: string | null }> {
+  return requestJson<{ publicKey: string | null }>("/notifications/vapid-public-key");
+}
+
+export async function subscribePush(payload: PushSubscriptionPayload): Promise<{ detail: string }> {
+  return requestJson<{ detail: string }>("/notifications/subscribe", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function unsubscribePush(payload: PushSubscriptionPayload): Promise<{ detail: string }> {
+  return requestJson<{ detail: string }>("/notifications/unsubscribe", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getNotificationPrefs(): Promise<{ notifications_enabled: boolean }> {
+  return requestJson<{ notifications_enabled: boolean }>("/notifications/preferences");
+}
+
+export async function updateNotificationPrefs(payload: {
+  notifications_enabled: boolean;
+}): Promise<{ detail: string }> {
+  return requestJson<{ detail: string }>("/notifications/preferences", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}

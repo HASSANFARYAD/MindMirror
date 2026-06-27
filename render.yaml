@@ -7,8 +7,9 @@ services:
     runtime: docker
     name: mindmirror-backend
     rootDir: backend
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.render
     plan: free
+    healthCheckPath: /health
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: AI_PROVIDER
@@ -25,6 +26,16 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
+      - key: FRONTEND_ORIGIN
+        value: https://mindmirror-frontend.onrender.com
+      - key: ENV_MODE
+        value: production
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_CLAIM_EMAIL
+        value: mailto:admin@mindmirror.app
 
   - type: web
     runtime: docker
@@ -32,6 +43,7 @@ services:
     rootDir: frontend
     dockerfilePath: ./Dockerfile
     plan: free
+    healthCheckPath: /
     startCommand: node server.js
     envVars:
       - key: NEXT_PUBLIC_API_URL

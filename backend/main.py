@@ -10,10 +10,12 @@ from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
 
 from rate_limit import limiter
-from routes import analysis, auth, chat, journal
+from routes import analysis, auth, chat, journal, notifications
 from services.claude_service import check_ollama_health
 from services.memory_service import ensure_base_schema, ensure_chat_schema, init_pool
 from services.migration import run_migrations
+from services.notification_service import ensure_push_schema, init_vapid
+from services.scheduler_service import start_scheduler, stop_scheduler
 from services.sentiment_service import get_emotion_pipeline
 from services.whisper_service import get_model
 from seed import seed_demo_data
@@ -37,6 +39,7 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(journal.router, prefix="/journal", tags=["journal"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
 app.include_router(analysis.router, prefix="/analysis", tags=["analysis"])
+app.include_router(notifications.router)
 APP_VERSION = "1.0.0"
 
 
@@ -78,14 +81,22 @@ async def startup_event() -> None:
 
     async with pool.acquire() as conn:
         await seed_demo_data(conn)
-    preload_results = await asyncio.gather(
-        asyncio.to_thread(get_model),
-        asyncio.to_thread(get_emotion_pipeline),
-        return_exceptions=True,
-    )
-    for result in preload_results:
-        if isinstance(result, Exception):
-            print(f"Startup preload warning: {result}")
+
+    await ensure_push_schema()
+    init_vapid()
+    start_scheduler()
+
+    async def _preload_models() -> None:
+        results = await asyncio.gather(
+            asyncio.to_thread(get_model),
+            asyncio.to_thread(get_emotion_pipeline),
+            return_exceptions=True,
+        )
+        for result in results:
+            if isinstance(result, Exception):
+                print(f"Startup preload warning: {result}")
+
+    asyncio.create_task(_preload_models())
 
 
 @app.get("/health")
@@ -110,5 +121,11 @@ async def health() -> dict[str, object]:
         "ai_provider": ai_provider,
         "ollama_ready": ollama_ready,
         "database_ready": database_ready,
+        "scheduler_running": start_scheduler().running,
         "version": APP_VERSION,
     }
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    stop_scheduler()
