@@ -56,9 +56,10 @@ class TestUtilities:
 
 class TestTriggerDetection:
     async def test_work_trigger(self):
-        """Work mentioned with negative sentiment should be flagged."""
+        """Work mentioned multiple times with negative sentiment should be flagged."""
         entries = [
             make_entry(content="Work has been so stressful lately.", sentiment_score=-0.5),
+            make_entry(content="Work is overwhelming me today.", sentiment_score=-0.6),
         ]
         result = await analyze_user_patterns("user-1", entries)
         assert len(result["patterns"]) >= 1

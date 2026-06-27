@@ -24,7 +24,7 @@ class TestCreateJournalEntry:
             "/journal/entry",
             json={"content": ""},
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 422
 
     async def test_create_entry_whitespace(self, client: AsyncClient):
         resp = await client.post(

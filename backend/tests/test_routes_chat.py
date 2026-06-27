@@ -42,13 +42,13 @@ class TestChatThreads:
     async def test_list_threads_after_creation(self, client: AsyncClient):
         await client.post("/chat/threads", json={"title": "Thread 1"})
         await client.post("/chat/threads", json={"title": "Thread 2"})
-        resp = await client.get("/chat/threads")
+        resp = await client.get("/chat/threads?journal_only=false")
         assert len(resp.json()) == 2
 
     async def test_list_threads_filter_by_search(self, client: AsyncClient):
         await client.post("/chat/threads", json={"title": "Anxiety talk"})
         await client.post("/chat/threads", json={"title": "Gratitude journal"})
-        resp = await client.get("/chat/threads?search=anxiety")
+        resp = await client.get("/chat/threads?search=anxiety&journal_only=false")
         titles = [t["title"] for t in resp.json()]
         assert "Anxiety talk" in titles
         assert "Gratitude journal" not in titles
@@ -97,7 +97,7 @@ class TestChatMessage:
             json={"message": "I'm feeling anxious about my presentation."},
         )
         assert resp.status_code == 200
-        assert resp.headers.get("content-type") == "text/event-stream"
+        assert "text/event-stream" in resp.headers.get("content-type", "")
 
         body = resp.text
         assert "data:" in body

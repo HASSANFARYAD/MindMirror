@@ -55,7 +55,7 @@ class TestJWT:
 
     def test_token_expires(self):
         token = create_access_token("user-1", "user@test.com", expires_hours=0)
-        payload = jwt.decode(token, "test-secret-value-for-tests-only", algorithms=["HS256"])
+        payload = jwt.decode(token, "test-secret-value-for-tests-only", algorithms=["HS256"], options={"verify_exp": False})
         exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
         assert exp <= datetime.now(timezone.utc) + timedelta(seconds=5)
 
@@ -108,7 +108,7 @@ class TestAuthCookie:
 
 
 class TestGetCurrentUser:
-    def test_with_bearer_header(self):
+    async def test_with_bearer_header(self):
         token = create_access_token(
             TEST_USER_ID := "00000000-0000-0000-0000-000000000001",
             "test@mindmirror.app",
@@ -118,12 +118,12 @@ class TestGetCurrentUser:
 
         with patch("services.memory_service.get_user_by_id") as mock_get:
             mock_get.return_value = {"id": TEST_USER_ID, "email": "test@mindmirror.app", "name": "Test"}
-            result = get_current_user(request, authorization=f"Bearer {token}")
+            result = await get_current_user(request, authorization=f"Bearer {token}")
             assert isinstance(result, CurrentUser)
             assert result.id == TEST_USER_ID
             assert result.email == "test@mindmirror.app"
 
-    def test_with_cookie(self):
+    async def test_with_cookie(self):
         token = create_access_token(
             TEST_USER_ID := "00000000-0000-0000-0000-000000000001",
             "test@mindmirror.app",
@@ -133,7 +133,7 @@ class TestGetCurrentUser:
 
         with patch("services.memory_service.get_user_by_id") as mock_get:
             mock_get.return_value = {"id": TEST_USER_ID, "email": "test@mindmirror.app", "name": "Test"}
-            result = get_current_user(request)
+            result = await get_current_user(request)
             assert isinstance(result, CurrentUser)
             assert result.id == TEST_USER_ID
 
@@ -144,7 +144,7 @@ class TestGetCurrentUser:
             await get_current_user(request)
         assert exc.value.status_code == 401
 
-    def test_cookie_preferred_over_header(self):
+    async def test_cookie_preferred_over_header(self):
         """If both cookie and header are present, cookie takes priority."""
         user_id = "00000000-0000-0000-0000-000000000001"
         token = create_access_token(user_id, "test@mindmirror.app")
@@ -153,10 +153,10 @@ class TestGetCurrentUser:
 
         with patch("services.memory_service.get_user_by_id") as mock_get:
             mock_get.return_value = {"id": user_id, "email": "test@mindmirror.app", "name": "Test"}
-            result = get_current_user(request)
+            result = await get_current_user(request)
             assert isinstance(result, CurrentUser)
 
-    def test_user_not_found(self):
+    async def test_user_not_found(self):
         token = create_access_token("nonexistent-user", "missing@test.com")
         request = MagicMock(spec=Request)
         request.cookies = {COOKIE_NAME: token}
@@ -164,7 +164,7 @@ class TestGetCurrentUser:
         with patch("services.memory_service.get_user_by_id") as mock_get:
             mock_get.return_value = None
             with pytest.raises(HTTPException) as exc:
-                get_current_user(request)
+                await get_current_user(request)
             assert exc.value.status_code == 401
 
     async def test_invalid_token_in_header(self):

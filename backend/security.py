@@ -87,8 +87,9 @@ async def get_current_user(
 ) -> CurrentUser:
     token: str | None = None
 
-    if authorization and authorization.lower().startswith("bearer "):
-        token = authorization.split(" ", 1)[1].strip()
+    auth_str = authorization if isinstance(authorization, str) else None
+    if auth_str and auth_str.lower().startswith("bearer "):
+        token = auth_str.split(" ", 1)[1].strip()
     if not token:
         token = request.cookies.get(COOKIE_NAME)
 

@@ -14,6 +14,7 @@ from httpx import ASGITransport, AsyncClient
 os.environ["JWT_SECRET"] = "test-secret-value-for-tests-only"
 os.environ["AI_PROVIDER"] = "ollama"
 os.environ["DATABASE_URL"] = "postgresql://fake:fake@localhost:9999/fake"
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 # ---------------------------------------------------------------------------
 # Mock heavy ML / AI modules so service imports don't trigger real loading
@@ -22,6 +23,9 @@ _transformers_mock = MagicMock()
 _pipeline_mock = MagicMock(return_value=MagicMock())
 _transformers_mock.pipeline = _pipeline_mock
 sys.modules["transformers"] = _transformers_mock
+
+# Mock whisper to avoid model download
+sys.modules["faster_whisper"] = MagicMock()
 
 TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
 TEST_USER_EMAIL = "test@mindmirror.app"
@@ -155,7 +159,7 @@ async def _mock_create_chat_thread(
 
 
 async def _mock_list_chat_threads(
-    user_id: str, search: str | None = None, journal_only: bool = True
+    user_id: str, search: str | None = None, journal_only: bool = False
 ) -> list[dict[str, Any]]:
     results = []
     for t in _mock_db.chat_threads:
@@ -285,6 +289,31 @@ async def _mock_get_user_context(user_id: str) -> dict[str, Any]:
     }
 
 
+async def _mock_get_emotional_map(user_id: str, days: int = 30) -> dict[str, Any]:
+    entries = [e for e in _mock_db.journal_entries if e["user_id"] == user_id]
+    labels = ["joy", "sadness", "fear", "anger", "surprise", "neutral", "disgust"]
+    timeline = []
+    for entry in entries[:30]:
+        emotions = entry.get("emotions") or {}
+        timeline.append({
+            "date": entry.get("created_at").isoformat() if isinstance(entry.get("created_at"), datetime) else "",
+            "sentiment_score": float(entry.get("sentiment_score") or 0.0),
+            "dominant_emotion": entry.get("dominant_emotion") or "neutral",
+            "emotions": {label: emotions.get(label, 0.0) for label in labels},
+            "snippet": str(entry.get("content") or "")[:140],
+        })
+    totals = {label: 0.0 for label in labels}
+    count = max(len(entries[:7]), 1)
+    for entry in entries[:7]:
+        emotions = entry.get("emotions") or {}
+        for label in labels:
+            totals[label] += float(emotions.get(label, 0.0))
+    radar = [{"emotion": label, "score": round(totals[label] / count, 3)} for label in labels]
+    patterns = await _mock_list_patterns(user_id, limit=12)
+    insights = await _mock_list_weekly_insights(user_id, limit=4)
+    return {"timeline": timeline, "radar": radar, "patterns": patterns, "weekly_insights": insights}
+
+
 # ---------------------------------------------------------------------------
 # Patch memory_service so routes never hit a real database
 # ---------------------------------------------------------------------------
@@ -307,19 +336,30 @@ MEMORY_SERVICE_PATCHES = {
     "list_weekly_insights": _mock_list_weekly_insights,
     "upsert_weekly_insight": _mock_upsert_weekly_insight,
     "get_user_context": _mock_get_user_context,
+    "get_emotional_map": _mock_get_emotional_map,
 }
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
+def _reset_mock_db():
+    reset_mock_db()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def mock_services():
-    with patch.multiple("services.memory_service", **MEMORY_SERVICE_PATCHES) as patched:
-        yield patched
+    with (
+        patch.multiple("services.memory_service", **MEMORY_SERVICE_PATCHES),
+        patch("services.pattern_service.insert_pattern", _mock_insert_pattern),
+        patch("services.pattern_service.upsert_weekly_insight", _mock_upsert_weekly_insight),
+    ):
+        yield
 
 
 # ---------------------------------------------------------------------------
 # Override fastapi dependency for get_current_user
 # ---------------------------------------------------------------------------
-from security import CurrentUser
+from security import CurrentUser, get_current_user
 
 
 async def _override_get_current_user() -> CurrentUser:
@@ -332,7 +372,6 @@ def app(mock_services) -> FastAPI:
 
     app.dependency_overrides = {}
     app.dependency_overrides[get_current_user] = _override_get_current_user
-    # Also set a valid JWT_SECRET in the app context
     return app
 
 

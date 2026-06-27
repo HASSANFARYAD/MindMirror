@@ -98,13 +98,15 @@ async def chat_message(
 ) -> StreamingResponse:
     """Generate and stream a MindMirror response while persisting the conversation."""
 
+    thread_id = payload.thread_id
+    if thread_id is not None:
+        existing_thread = await get_chat_thread(thread_id, current_user.id)
+        if existing_thread is None:
+            raise HTTPException(status_code=404, detail="Chat thread not found")
+
     async def stream() -> AsyncGenerator[str, None]:
-        journal_context = await _collect_context(current_user.id, payload.journal_entry_id, payload.thread_id)
-        thread_id = payload.thread_id
-        if thread_id is not None:
-            existing_thread = await get_chat_thread(thread_id, current_user.id)
-            if existing_thread is None:
-                raise HTTPException(status_code=404, detail="Chat thread not found")
+        nonlocal thread_id
+        journal_context = await _collect_context(current_user.id, payload.journal_entry_id, thread_id)
         if thread_id is None:
             created_thread = await create_chat_thread(
                 current_user.id,
