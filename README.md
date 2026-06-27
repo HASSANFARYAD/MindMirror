@@ -1,142 +1,141 @@
-# 🚀 Quick Start — No API Keys Needed
-
-This app runs 100% locally. No Anthropic, OpenAI, or paid services required.
-
-### Prerequisites
-- Docker Desktop installed and running
-- 8GB RAM minimum (for models)
-- 10GB free disk space (for model downloads)
-
-### Run in 3 steps
-
-Step 1 — Clone and setup env
-  cp .env.example .env
-
-Step 2 — Build and start everything
-  docker-compose up --build
-
-Step 3 — Wait for models to download (first run only ~5 mins)
-  Watch for: "Ollama is ready!" and "Whisper ready." in logs
-
-Step 4 — Open the app
-  Frontend: http://localhost:3000
-  Backend API docs: http://localhost:8000/docs
-
-### What downloads automatically on first run
-- Llama 3.2 3B model (~2GB) via Ollama
-- Whisper base model (~140MB)
-- distilroberta emotion model (~300MB via HuggingFace)
-All cached in Docker volumes — only downloads once.
-
 # MindMirror
 
-MindMirror is an AI-powered emotional health companion built around CBT principles. It helps users journal, reflect on patterns, and have supportive conversations grounded in cognitive reframing.
+AI-powered emotional health companion built around CBT principles. Journal, reflect on patterns, and get supportive conversations grounded in cognitive reframing — all running **100% locally** with no paid API keys.
 
-## Problem Statement
+## Quick Start
 
-People often notice distress, anxiety, or negative self-talk only after it has already shaped their day. MindMirror gives them a low-friction way to capture emotions, identify recurring cognitive distortions, and turn reflection into a gentle next step.
+### Prerequisites
+- Docker Desktop
+- 8GB RAM minimum
+- 10GB free disk space (model downloads, first run only)
+
+### Run
+```bash
+cp .env.example .env
+docker-compose up --build
+```
+
+Wait for `"Ollama is ready!"` and `"Whisper ready."` in logs (~5 mins first run).
+
+- **Frontend:** http://localhost:3000
+- **API docs:** http://localhost:8000/docs
 
 ## Features
 
-- Mood journaling with CBT-grounded emotional analysis
-- Real-time chat support with streaming responses
-- Emotional dashboard with trends, patterns, and weekly insight summaries
-- Growth Story view showing before-and-after emotional transformation
-- Live Emotion Preview while typing in the journal
-- Therapist Export with a printable private PDF summary
-- Demo Mode for one-click presentation-ready walkthroughs
+- **CBT-grounded journaling** — emotion analysis via HuggingFace + 8 cognitive distortion detectors
+- **AI chat assistant** — streaming LLM (Ollama local or Groq cloud) with a 5-step CBT framework
+- **Emotional dashboard** — sentiment timeline, radar chart, mood calendar, patterns, weekly insights
+- **Growth Story** — before/after comparison of oldest vs newest entries with auto-generated narrative
+- **Live emotion preview** — emoji overlay while typing in the journal
+- **Voice journaling** — Whisper STT (local, CPU int8)
+- **Therapist export** — printable clinical summary
+- **Pattern detection** — triggers, weekly cycles, growth streaks, alert conditions
+- **Email verification** — via Resend (auto-sent on register, manual resend available)
+- **Offline-first PWA** — service worker with caching, manifest, installable
+- **Dark glassmorphism UI** — custom gradients, animations, responsive
+- **Demo mode** — 30-day 3-phase emotional arc with deterministic seed data
 
 ## Architecture
 
 ```text
-                         +----------------------+
-                         |   Next.js Frontend   |
-                         |  Journal / Chat /    |
-                         |  Dashboard / Landing |
-                         +----------+-----------+
-                                    |
-                                    | HTTP + SSE
-                                    v
-                         +----------+-----------+
-                         |    FastAPI Backend   |
-                         | Auth / Analysis /    |
-                         | Chat / Journal APIs   |
-                         +----------+-----------+
-                                    |
-           +------------------------+------------------------+
-           |                        |                        |
-           v                        v                        v
-   +---------------+        +---------------+        +---------------+
-   |   Supabase    |        | Anthropic API |        | OpenAI Whisper|
-   | PostgreSQL    |        | Claude chat   |        | voice transcribe|
-   +---------------+        +---------------+        +---------------+
-                                    |
-                                    v
-                            +---------------+
-                            | Hugging Face   |
-                            | emotion model  |
-                            +---------------+
+                        +----------------------+
+                        |   Next.js Frontend   |
+                        |  Journal / Chat /    |
+                        |  Dashboard / Landing |
+                        +---------+-----------+
+                                  |
+                            HTTP + SSE
+                                  v
+                        +---------+-----------+
+                        |    FastAPI Backend   |
+                        | Auth / Analysis /    |
+                        | Chat / Journal APIs  |
+                        +---------+-----------+
+                                  |
+            +---------------------+----------------------+
+            |                     |                       |
+            v                     v                       v
+    +---------------+     +---------------+       +---------------+
+    |  PostgreSQL   |     | Ollama / Groq |       |   Whisper     |
+    |  (asyncpg)    |     |  LLM (CBT)    |       |   STT model   |
+    +---------------+     +---------------+       +---------------+
+            |                     |
+            v                     v
+    +---------------+     +---------------+
+    |  Alembic      |     | Hugging Face  |
+    |  migrations   |     | emotion model |
+    +---------------+     +---------------+
 ```
 
 ## Tech Stack
 
-- Next.js 14 App Router
-- TypeScript
-- Tailwind CSS
-- FastAPI
-- Pydantic
-- Supabase / PostgreSQL
-- Anthropic Claude
-- Hugging Face Transformers
-- OpenAI Whisper
-- SSE streaming
-- Vitest + React Testing Library (frontend tests)
-- pytest + pytest-asyncio (backend tests)
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS |
+| Backend | FastAPI, Pydantic, asyncpg, Python 3.11 |
+| AI | Ollama (local) or Groq (cloud) for LLM, HuggingFace for emotion, Whisper for STT |
+| Database | PostgreSQL, Alembic migrations |
+| Auth | JWT in HttpOnly cookies, bcrypt, rate-limited |
+| PWA | Service worker with Cache API, manifest.json, offline indicator |
+| Email | Resend API (optional — no key = silent skip) |
+| Testing | Vitest + RTL (frontend), pytest + pytest-asyncio (backend) |
 
-## Setup
+## Environment Variables
 
-1. Clone the repository.
-2. Copy `.env.example` to `.env` and fill in your keys.
-3. Apply the Supabase schema from `backend/database/schema.sql`.
-4. Start the app:
+See `.env.example` for all options. Key ones:
 
-```bash
-docker-compose up --build
-```
-
-Frontend: `http://localhost:3000`  
-Backend: `http://localhost:8000`
+| Variable | Required | Default | Notes |
+|----------|----------|---------|-------|
+| `JWT_SECRET` | Yes | — | Random string for token signing |
+| `AI_PROVIDER` | No | `ollama` | Switch to `groq` for cloud mode |
+| `GROQ_API_KEY` | No | — | Required if `AI_PROVIDER=groq` |
+| `DATABASE_URL` | No | Docker default | Cloud DB connection string |
+| `RESEND_API_KEY` | No | — | Optional — enables email verification |
+| `RESEND_FROM_EMAIL` | No | `onboarding@resend.dev` | Sender address |
 
 ## How the CBT AI Works
 
-MindMirror applies CBT silently on each response:
+Each chat response silently applies a 5-step framework:
 
-1. It detects cognitive distortions such as catastrophizing, mind reading, or all-or-nothing thinking.
-2. It validates the emotion before offering any reframing.
-3. It asks one Socratic question to help the user examine the thought.
-4. If distress appears high, it suggests a grounding technique.
-5. It closes with a warm, concrete next step.
-
-## Screenshots
-
-Placeholder for product screenshots.
-
-## Demo Video
-
-Placeholder for a demo video link.
+1. **Detect** cognitive distortions (catastrophizing, mind reading, all-or-nothing, etc.)
+2. **Validate** the emotion before reframing
+3. **Ask** one Socratic question to examine the thought
+4. **Ground** if distress is high (breathing, sensory check-in)
+5. **Close** with a warm, concrete next step
 
 ## Testing
-
-### Backend (pytest)
-```bash
-cd backend && python -m pytest -v
-```
-114 tests covering auth, sentiment analysis, pattern detection, journal, chat, and security.
 
 ### Frontend (Vitest)
 ```bash
 cd frontend && npm test
 ```
-20 tests covering utility functions (`sentiment.ts`) and component rendering/interaction (`CrisisBanner.tsx`). Run `npm run test:watch` for watch mode.
+20 tests: utility functions (`sentiment.ts`) + component rendering (`CrisisBanner.tsx`).
 
-Both suites run independently — no API keys or external services required.
+### Backend (pytest)
+```bash
+cd backend && python3 -m pytest -v
+```
+114 tests: auth, sentiment, patterns, journal, chat, security. In-memory mock DB, no external services needed.
+
+## Project Structure
+
+```
+backend/
+  main.py              — FastAPI entry point, CORS, startup
+  alembic/             — Database migrations
+  routes/              — auth, journal, chat, analysis
+  services/            — memory, sentiment, claude, whisper, pattern, email, migration
+  models/              — Pydantic schemas
+  database/            — schema.sql (reference)
+  tests/               — 114 pytest tests
+frontend/
+  app/                 — Next.js App Router pages
+  components/          — React components
+  lib/                 — API client, auth, sentiment helpers
+  tests/               — 20 Vitest tests
+  public/              — Static assets, manifest, service worker
+```
+
+## License
+
+MIT

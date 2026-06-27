@@ -4,6 +4,7 @@ export type AuthUser = {
   id: string;
   email: string;
   name?: string | null;
+  email_verified?: boolean;
 };
 
 export type AuthSession = {

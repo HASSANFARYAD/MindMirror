@@ -160,6 +160,9 @@ async def ensure_base_schema() -> None:
             )
 
         await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT")
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE")
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT")
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token_expires_at TIMESTAMP")
         await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS thread_id UUID")
 
 
@@ -609,6 +612,47 @@ async def save_weekly_insight(user_id: str, insight_data: dict[str, Any]) -> dic
         insight_data.get("generated_at"),
     )
     return _record_to_dict(row) if row else {"user_id": user_id, **insight_data}
+
+
+async def set_verification_token(user_id: str, token: str, expires_at: datetime) -> None:
+    await _execute(
+        """
+        UPDATE users
+        SET verification_token = $2,
+            verification_token_expires_at = $3
+        WHERE id = $1
+        """,
+        user_id,
+        token,
+        expires_at,
+    )
+
+
+async def get_user_by_verification_token(token: str) -> dict[str, Any] | None:
+    row = await _fetchrow(
+        """
+        SELECT *
+        FROM users
+        WHERE verification_token = $1
+          AND verification_token_expires_at > NOW()
+        LIMIT 1
+        """,
+        token,
+    )
+    return _record_to_dict(row)
+
+
+async def mark_email_verified(user_id: str) -> None:
+    await _execute(
+        """
+        UPDATE users
+        SET email_verified = TRUE,
+            verification_token = NULL,
+            verification_token_expires_at = NULL
+        WHERE id = $1
+        """,
+        user_id,
+    )
 
 
 async def upsert_weekly_insight(payload: dict[str, Any]) -> dict[str, Any]:

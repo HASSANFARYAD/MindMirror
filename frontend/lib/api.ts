@@ -295,3 +295,15 @@ export async function deleteChatThread(threadId: string): Promise<void> {
     method: "DELETE",
   });
 }
+
+export async function sendVerificationEmail(): Promise<{ detail: string }> {
+  return requestJson<{ detail: string }>("/auth/send-verification", {
+    method: "POST",
+  });
+}
+
+export async function verifyEmail(token: string): Promise<{ detail: string }> {
+  return requestJson<{ detail: string }>(
+    `/auth/verify-email?token=${encodeURIComponent(token)}`,
+  );
+}

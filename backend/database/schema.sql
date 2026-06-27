@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   name TEXT,
   password_hash TEXT,
+  email_verified BOOLEAN DEFAULT FALSE,
+  verification_token TEXT,
+  verification_token_expires_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW()
 );
 

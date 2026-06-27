@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { CrisisBanner } from "@/components/CrisisBanner";
+import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SiteHeader } from "@/components/SiteHeader";
-// import { DemoBanner } from "@/components/DemoBanner";
 
 type AppShellProps = {
   children: ReactNode;
@@ -21,18 +22,20 @@ export function AppShell({ children }: AppShellProps) {
     >
       <CrisisBanner />
       <Suspense fallback={null}>
+        <EmailVerificationBanner />
+      </Suspense>
+      <Suspense fallback={null}>
         <SiteHeader />
       </Suspense>
-      <main
-        className={`relative z-10 mx-auto w-full px-5 py-8 pb-20 md:px-12 lg:px-12 ${
-          isChatRoute ? "flex flex-1 min-h-0 overflow-hidden" : "flex-1"
-        }`}
-      >
-        {children}
-      </main>
-      {/* <Suspense fallback={null}>
-        <DemoBanner />
-      </Suspense> */}
+      <ErrorBoundary>
+        <main
+          className={`relative z-10 mx-auto w-full px-5 py-8 pb-20 md:px-12 lg:px-12 ${
+            isChatRoute ? "flex flex-1 min-h-0 overflow-hidden" : "flex-1"
+          }`}
+        >
+          {children}
+        </main>
+      </ErrorBoundary>
     </div>
   );
 }
