@@ -11,7 +11,7 @@ MindMirror is an AI-powered emotional health companion built around CBT principl
 - JWT tokens with 24h expiry, stored in HttpOnly cookies
 - Passwords hashed with bcrypt (cost factor 10+)
 - All protected routes derive user identity from JWT, not request payloads
-- Public routes limited to login, register, and health check
+- Public routes limited to login, register, logout, health check, and anonymous sentiment preview (preview is stateless — no DB writes)
 
 ### Input Validation
 - All API routes use Pydantic models for request validation
