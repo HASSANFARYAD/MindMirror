@@ -181,6 +181,15 @@ frontend/
   public/              — Static assets, manifest, service worker
 ```
 
+## Contributing
+
+Contributions are welcome!
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — how to set up, develop, test, and submit changes
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — our community standards
+
+Look for issues labeled `good first issue`, `help wanted`, `documentation`, or `enhancement`.
+
 ## License
 
-MIT
+Released under the [MIT License](LICENSE).
