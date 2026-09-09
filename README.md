@@ -1,195 +1,517 @@
-# MindMirror
+# 🧠 MindMirror
 
-AI-powered emotional health companion built around CBT principles. Journal, reflect on patterns, and get supportive conversations grounded in cognitive reframing — all running **100% locally** with no paid API keys.
+> **Open-source, privacy-first AI companion for emotional reflection.**
 
-## Quick Start
+MindMirror helps you understand your thoughts, recognize emotional patterns, and reflect through supportive conversations inspired by Cognitive Behavioral Therapy (CBT).
 
-### Prerequisites
-- Docker Desktop
-- 8GB RAM minimum
-- 10GB free disk space (model downloads, first run only)
+It combines **AI journaling, emotion analysis, cognitive distortion detection, CBT-inspired conversations, voice journaling, and emotional insights** into one application.
 
-### Run
+The goal is simple:
+
+> **Give people a private space to understand themselves better — while keeping the technology open and their data under their control.**
+
+[![Live Demo](https://img.shields.io/badge/🚀%20Live%20Demo-Try%20MindMirror-6366f1)](https://mind-mirror-tau.vercel.app/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+
+---
+
+## ⭐ Support MindMirror
+
+If you find MindMirror useful or interesting:
+
+* ⭐ **Star** the repository to help others discover it
+* 🍴 **Fork** it and build your own version
+* 🐛 **Report bugs** and issues
+* 💡 **Suggest features**
+* 🤝 **Contribute** with code, documentation, or ideas
+
+Every star, fork, issue, and contribution helps the project grow.
+
+---
+
+## 🚀 Try MindMirror
+
+### 🌐 Live Demo
+
+**[Open MindMirror →](https://mind-mirror-tau.vercel.app/)**
+
+MindMirror also includes a **Demo Mode** so you can explore the application and its emotional insights without using real personal journal data.
+
+---
+
+# 🌱 Why MindMirror?
+
+Most AI applications require sending your conversations to a cloud AI provider.
+
+MindMirror takes a different approach.
+
+### 🔒 Privacy-first
+
+Your journal can contain deeply personal information.
+
+MindMirror can run AI models **locally on your own machine using Ollama**, allowing you to keep your data under your control.
+
+### 🧠 CBT-inspired
+
+MindMirror uses a structured conversation approach inspired by Cognitive Behavioral Therapy:
+
+1. Identify possible cognitive distortions
+2. Validate the emotional experience
+3. Examine the thought
+4. Encourage reflection through Socratic questions
+5. Suggest a practical next step
+
+### 🤖 Local AI
+
+Run MindMirror with **Ollama** and local language models.
+
+No paid AI API is required when using the local AI configuration.
+
+### 📊 Understand your patterns
+
+MindMirror goes beyond storing journal entries.
+
+It helps surface:
+
+* Emotional trends
+* Cognitive distortions
+* Possible triggers
+* Weekly patterns
+* Growth streaks
+* Changes over time
+
+---
+
+# ✨ Features
+
+| Feature                    | Description                                                              |
+| -------------------------- | ------------------------------------------------------------------------ |
+| 📔 **AI Journaling**       | Write about your thoughts and receive emotional analysis                 |
+| 🧠 **CBT Analysis**        | Detect possible cognitive distortions and encourage healthier reflection |
+| 💬 **AI Companion**        | Supportive conversations using a CBT-inspired framework                  |
+| 📊 **Emotional Dashboard** | Explore mood trends, emotional timelines, and insights                   |
+| 📈 **Growth Story**        | Compare earlier and recent entries to visualize changes                  |
+| 🎙️ **Voice Journaling**   | Record thoughts using Whisper speech-to-text                             |
+| 🔍 **Pattern Detection**   | Identify emotional patterns and recurring themes                         |
+| 🔔 **Daily Check-ins**     | Browser push notifications and email reminders                           |
+| 📱 **Offline-first PWA**   | Install MindMirror as a Progressive Web App                              |
+| 🎨 **Modern UI**           | Responsive dark glassmorphism interface                                  |
+| 🧪 **Demo Mode**           | Explore MindMirror with deterministic demo data                          |
+| 👨‍⚕️ **Therapist Export** | Generate a printable summary of journal insights                         |
+
+---
+
+# 🧠 How It Works
+
+MindMirror uses a structured five-step CBT-inspired conversation process.
+
+### 1. Detect
+
+The system looks for possible cognitive distortions such as:
+
+* Catastrophizing
+* Mind reading
+* All-or-nothing thinking
+* Overgeneralization
+* Other common thinking patterns
+
+### 2. Validate
+
+The AI acknowledges the user's emotional experience before attempting to reframe the thought.
+
+### 3. Examine
+
+The conversation uses Socratic-style questions to encourage reflection.
+
+### 4. Ground
+
+When appropriate, the system can introduce grounding techniques such as breathing or sensory check-ins.
+
+### 5. Next Step
+
+The conversation encourages a practical and manageable next step.
+
+---
+
+# 🏗️ Architecture
+
+```text
+                        ┌─────────────────────────┐
+                        │     Next.js Frontend    │
+                        │                         │
+                        │ Journal / Chat /        │
+                        │ Dashboard / Landing     │
+                        └────────────┬────────────┘
+                                     │
+                                  HTTP + SSE
+                                     │
+                                     ▼
+                        ┌─────────────────────────┐
+                        │     FastAPI Backend     │
+                        │                         │
+                        │ Auth / Analysis /       │
+                        │ Chat / Journal APIs     │
+                        └────────────┬────────────┘
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              │                      │                      │
+              ▼                      ▼                      ▼
+       ┌─────────────┐       ┌─────────────┐       ┌─────────────┐
+       │ PostgreSQL  │       │ Ollama/Groq │       │   Whisper   │
+       │   Database  │       │     LLM     │       │    STT      │
+       └─────────────┘       └─────────────┘       └─────────────┘
+              │                      │
+              ▼                      ▼
+       ┌─────────────┐       ┌─────────────┐
+       │   Alembic   │       │ HuggingFace │
+       │  Migrations │       │Emotion Model│
+       └─────────────┘       └─────────────┘
+```
+
+---
+
+# 🛠️ Tech Stack
+
+| Layer          | Technology                                     |
+| -------------- | ---------------------------------------------- |
+| Frontend       | Next.js 14, React 18, TypeScript, Tailwind CSS |
+| Backend        | FastAPI, Pydantic, Python 3.11                 |
+| AI             | Ollama / Groq, Hugging Face, Whisper           |
+| Database       | PostgreSQL                                     |
+| Migrations     | Alembic                                        |
+| Authentication | JWT, HttpOnly cookies, bcrypt                  |
+| PWA            | Service Worker, Cache API                      |
+| Email          | Resend                                         |
+| Testing        | Vitest, React Testing Library, pytest          |
+| Deployment     | Docker / Render / Vercel                       |
+
+---
+
+# 🚀 Quick Start
+
+## Requirements
+
+Before starting, make sure you have:
+
+* Docker Desktop
+* At least **8 GB RAM**
+* At least **10 GB free disk space**
+
+The additional disk space is primarily required for AI model downloads.
+
+---
+
+## Clone the Repository
+
+```bash
+git clone https://github.com/HASSANFARYAD/MindMirror.git
+cd MindMirror
+```
+
+---
+
+## Configure Environment Variables
+
+Create your environment file:
+
 ```bash
 cp .env.example .env
+```
+
+Then open `.env` and configure the values required for your environment.
+
+---
+
+## Start with Docker
+
+```bash
 docker-compose up --build
 ```
 
-Wait for `"Ollama is ready!"` and `"Whisper ready."` in logs (~5 mins first run).
+The first startup may take several minutes because AI models may need to be downloaded.
 
-- **Frontend:** http://localhost:3000
-- **API docs:** http://localhost:8000/docs
+Once the services are running:
 
-## Features
-
-- **CBT-grounded journaling** — emotion analysis via HuggingFace + 8 cognitive distortion detectors
-- **AI chat assistant** — streaming LLM (Ollama local or Groq cloud) with a 5-step CBT framework
-- **Emotional dashboard** — sentiment timeline, radar chart, mood calendar, patterns, weekly insights
-- **Growth Story** — before/after comparison of oldest vs newest entries with auto-generated narrative
-- **Live emotion preview** — emoji overlay while typing in the journal
-- **Voice journaling** — Whisper STT (local, CPU int8)
-- **Therapist export** — printable clinical summary
-- **Pattern detection** — triggers, weekly cycles, growth streaks, alert conditions
-- **Email verification** — via Resend (auto-sent on register, manual resend available)
-- **Push notifications** — daily check-in reminders + pattern alerts via Web Push + email
-- **Offline-first PWA** — service worker with caching, manifest, installable
-- **Dark glassmorphism UI** — custom gradients, animations, responsive
-- **Demo mode** — 30-day 3-phase emotional arc with deterministic seed data
-
-## Architecture
+### Frontend
 
 ```text
-                        +----------------------+
-                        |   Next.js Frontend   |
-                        |  Journal / Chat /    |
-                        |  Dashboard / Landing |
-                        +---------+-----------+
-                                  |
-                            HTTP + SSE
-                                  v
-                        +---------+-----------+
-                        |    FastAPI Backend   |
-                        | Auth / Analysis /    |
-                        | Chat / Journal APIs  |
-                        +---------+-----------+
-                                  |
-            +---------------------+----------------------+
-            |                     |                       |
-            v                     v                       v
-    +---------------+     +---------------+       +---------------+
-    |  PostgreSQL   |     | Ollama / Groq |       |   Whisper     |
-    |  (asyncpg)    |     |  LLM (CBT)    |       |   STT model   |
-    +---------------+     +---------------+       +---------------+
-            |                     |
-            v                     v
-    +---------------+     +---------------+
-    |  Alembic      |     | Hugging Face  |
-    |  migrations   |     | emotion model |
-    +---------------+     +---------------+
+http://localhost:3000
 ```
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS |
-| Backend | FastAPI, Pydantic, asyncpg, Python 3.11 |
-| AI | Ollama (local) or Groq (cloud) for LLM, HuggingFace for emotion, Whisper for STT |
-| Database | PostgreSQL, Alembic migrations |
-| Auth | JWT in HttpOnly cookies, bcrypt, rate-limited |
-| PWA | Service worker with Cache API, manifest.json, offline indicator |
-| Email | Resend API (optional — no key = silent skip) |
-| Testing | Vitest + RTL (frontend), pytest + pytest-asyncio (backend) |
-
-## Environment Variables
-
-See `.env.example` for all options. Key ones:
-
-| Variable | Required | Default | Notes |
-|----------|----------|---------|-------|
-| `JWT_SECRET` | Yes | — | Random string for token signing |
-| `AI_PROVIDER` | No | `ollama` | Switch to `groq` for cloud mode |
-| `GROQ_API_KEY` | No | — | Required if `AI_PROVIDER=groq` |
-| `DATABASE_URL` | No | Docker default | Cloud DB connection string |
-| `RESEND_API_KEY` | No | — | Optional — enables email verification |
-| `RESEND_FROM_EMAIL` | No | `onboarding@resend.dev` | Sender address |
-| `VAPID_PRIVATE_KEY` | No | — | Push notifications private key (see Push Notifications section) |
-| `VAPID_PUBLIC_KEY` | No | — | Push notifications public key |
-| `VAPID_CLAIM_EMAIL` | No | `mailto:admin@mindmirror.app` | Contact email in push payload |
-
-## How the CBT AI Works
-
-Each chat response silently applies a 5-step framework:
-
-1. **Detect** cognitive distortions (catastrophizing, mind reading, all-or-nothing, etc.)
-2. **Validate** the emotion before reframing
-3. **Ask** one Socratic question to examine the thought
-4. **Ground** if distress is high (breathing, sensory check-in)
-5. **Close** with a warm, concrete next step
-
-## Push Notifications
-
-MindMirror sends daily check-in reminders and pattern alerts via **browser push** + **email** (fallback).
-
-### Setup (one-time)
-
-Generate a VAPID key pair and add it to your `.env`:
-
-```bash
-pip install pywebpush && python3 -c "
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import serialization
-import base64
-key = ec.generate_private_key(ec.SECP256R1())
-priv = base64.urlsafe_b64encode(
-    key.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
-).rstrip('=').decode()
-pub = base64.urlsafe_b64encode(
-    key.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
-).rstrip('=').decode()
-print(f'VAPID_PRIVATE_KEY={priv}')
-print(f'VAPID_PUBLIC_KEY={pub}')
-"
-```
-
-Copy the two output values into your `.env` file:
+### Backend API
 
 ```text
-VAPID_PRIVATE_KEY=<long-base64-string>
-VAPID_PUBLIC_KEY=<long-base64-string>
+http://localhost:8000
 ```
 
-For production (Render), paste them in **Render Dashboard → Backend Service → Environment Variables**. These keys are permanent — set once, never change.
+### API Documentation
 
-### How it works
-- Users enable notifications via the bell icon in the header (requests browser permission)
-- Backend scheduler runs **hourly**: checks who hasn't journaled today → sends push + email reminder
-- **Every 6 hours**: checks for high-severity pattern alerts (3 consecutive negative days) → sends alert
-- Clicking a notification opens the journal page
-- No VAPID keys = email-only mode (if Resend is configured). No Resend key = push still works.
+```text
+http://localhost:8000/docs
+```
 
-## Testing
+---
 
-### Frontend (Vitest)
+# 🤖 AI Configuration
+
+MindMirror supports different AI providers.
+
+## Local AI with Ollama
+
+For a privacy-focused setup, use Ollama:
+
+```env
+AI_PROVIDER=ollama
+```
+
+This allows the language model to run locally on your machine.
+
+### Why Ollama?
+
+* Local inference
+* No paid API required
+* Greater control over your data
+* Works with open-source models
+* Useful for offline/private deployments
+
+---
+
+## Cloud AI with Groq
+
+You can also configure Groq:
+
+```env
+AI_PROVIDER=groq
+```
+
+See `.env.example` for the complete configuration.
+
+---
+
+# 🎙️ Voice Journaling
+
+MindMirror supports voice journaling using **Whisper speech-to-text**.
+
+The general flow is:
+
+```text
+Voice Recording
+       ↓
+Whisper Speech-to-Text
+       ↓
+Journal Entry
+       ↓
+Emotion Analysis
+       ↓
+AI Insights
+```
+
+This allows users to capture their thoughts without typing.
+
+---
+
+# 📊 Emotional Insights
+
+MindMirror provides visual insights into your journal history.
+
+Depending on the available data, you can explore:
+
+* Mood trends
+* Sentiment changes
+* Emotional patterns
+* Cognitive distortions
+* Recurring themes
+* Growth over time
+
+The purpose is to make your journal history easier to reflect on rather than simply storing entries.
+
+---
+
+# 🔔 Notifications
+
+MindMirror supports reminders and notifications for journaling and check-ins.
+
+Supported functionality includes:
+
+* Daily journaling reminders
+* Browser push notifications
+* Email reminders
+* Pattern-related notifications
+
+Notification configuration is documented in `.env.example`.
+
+---
+
+# 📱 Progressive Web App
+
+MindMirror is designed as an **offline-first Progressive Web App (PWA)**.
+
+You can install it on supported devices and access supported functionality without treating it like a traditional website.
+
+---
+
+# 🧪 Demo Mode
+
+MindMirror includes a deterministic demo mode.
+
+This allows developers and users to explore:
+
+* Journal entries
+* Emotional patterns
+* Dashboard visualizations
+* Insights
+* Growth history
+
+without having to populate the application with personal data.
+
+---
+
+# 🧪 Testing
+
+## Frontend
+
 ```bash
-cd frontend && npm test
+cd frontend
+npm test
 ```
-20 tests: utility functions (`sentiment.ts`) + component rendering (`CrisisBanner.tsx`).
 
-### Backend (pytest)
+## Backend
+
 ```bash
-cd backend && python3 -m pytest -v
-```
-114 tests: auth, sentiment, patterns, journal, chat, security. In-memory mock DB, no external services needed.
-
-## Project Structure
-
-```
-backend/
-  main.py              — FastAPI entry point, CORS, startup
-  alembic/             — Database migrations
-  routes/              — auth, journal, chat, analysis
-  services/            — memory, sentiment, claude, whisper, pattern, email, migration
-  models/              — Pydantic schemas
-  database/            — schema.sql (reference)
-  tests/               — 114 pytest tests
-frontend/
-  app/                 — Next.js App Router pages
-  components/          — React components
-  lib/                 — API client, auth, sentiment helpers
-  tests/               — 20 Vitest tests
-  public/              — Static assets, manifest, service worker
+cd backend
+python3 -m pytest -v
 ```
 
-## Contributing
+---
+
+# 📁 Project Structure
+
+```text
+MindMirror/
+│
+├── backend/
+│   ├── main.py
+│   ├── alembic/
+│   ├── routes/
+│   ├── services/
+│   ├── models/
+│   ├── database/
+│   └── tests/
+│
+├── frontend/
+│   ├── app/
+│   ├── components/
+│   ├── lib/
+│   ├── tests/
+│   └── public/
+│
+├── .env.example
+├── docker-compose.yml
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── DEPLOYMENT.md
+├── AUDIT_REPORT.md
+└── README.md
+```
+
+---
+
+# 🍴 Build Your Own MindMirror
+
+Want to customize MindMirror?
+
+Click the **Fork** button at the top of this repository and create your own version.
+
+Then clone your fork:
+
+```bash
+git clone https://github.com/YOUR_USERNAME/MindMirror.git
+cd MindMirror
+```
+
+Create a feature branch:
+
+```bash
+git checkout -b feature/my-feature
+```
+
+Make your changes, test them, and open a pull request.
+
+---
+
+# 💡 What Can You Build?
+
+MindMirror is intentionally open to experimentation.
+
+You could contribute:
+
+* 🎨 UI improvements
+* 🧠 New CBT techniques
+* 🤖 Support for additional local AI models
+* 📊 Better emotional visualizations
+* 🎙️ Improved voice journaling
+* 🔐 Privacy improvements
+* ♿ Accessibility improvements
+* 🧪 Additional tests
+* 🌍 Internationalization
+* 📚 Better documentation
+* 🔌 New integrations
+
+---
+
+# 🤝 Contributing
 
 Contributions are welcome!
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — how to set up, develop, test, and submit changes
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — our community standards
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide, including:
 
-Look for issues labeled `good first issue`, `help wanted`, `documentation`, or `enhancement`.
+* How to set up your development environment
+* Contribution workflow
+* How to report bugs
+* How to suggest features
+* Code style and testing requirements
 
-## License
+If you're looking for something to work on, check issues labeled:
 
-Released under the [MIT License](LICENSE).
+* `good first issue`
+* `help wanted`
+* `documentation`
+* `enhancement`
+
+---
+
+# 🔐 Privacy
+
+MindMirror is designed with privacy in mind.
+
+When configured with local AI through Ollama, your AI processing can happen on your own machine rather than being sent to a third-party AI provider.
+
+However, your final privacy guarantees depend on your deployment configuration, infrastructure, database, AI provider, and environment.
+
+Always review your configuration before using real sensitive information.
+
+---
+
+# ⚠️ Disclaimer
+
+MindMirror is a software project for **self-reflection and emotional support**.
+
+It is **not a replacement for a licensed mental-health professional, diagnosis, treatment, or emergency services**.
+
+If someone is experiencing a mental-health emergency or is in immediate danger, they should contact appropriate local emergency services or a qualified professional.
+
+---
+
+# 📄 License
+
+MindMirror is released under the **MIT License**.
+
+See [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+
+**Built with ❤️ by Hassan Faryad**
+
+</p>
